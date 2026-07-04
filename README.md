@@ -79,6 +79,24 @@ All four use an OpenAI-compatible API, so switching is just editing `.env`.
 **Tip for the live demo:** Groq is the fastest free option — great insurance
 against a slow response while judges watch.
 
+### 🔁 Automatic provider failover
+
+The server tries the primary `PROVIDER` first, then **automatically fails over**
+to any other provider that has a key set — so a rate-limit (429) or timeout on
+one provider transparently retries on the next before ever touching the curated
+fallback. Configure as many as you like in `.env`:
+
+```env
+PROVIDER=groq                 # primary, tried first
+GROQ_API_KEY=...
+NVIDIA_API_KEY=...            # failover #1
+OPENROUTER_API_KEY=...        # failover #2
+# optional per-provider model override: GROQ_MODEL=, NVIDIA_MODEL=, ...
+```
+
+Every LLM call is also bounded by `LLM_TIMEOUT_MS` (default 15s) via an
+`AbortController`, so a hung provider can never freeze a request.
+
 ---
 
 ## ⚙️ Configuration reference (`.env`)

@@ -20,6 +20,9 @@ const {
   packageMessages,
   chatMessages,
   languageRule,
+  clampStr,
+  clampPrefs,
+  providerChain,
   PROVIDERS,
 } = require("../server.js");
 
@@ -164,7 +167,7 @@ function request(method, path, body) {
           res.on("data", (c) => (data += c));
           res.on("end", () => {
             srv.close();
-            resolve({ status: res.statusCode, body: data });
+            resolve({ status: res.statusCode, body: data, headers: res.headers });
           });
         }
       );
@@ -202,4 +205,37 @@ test("GET / serves the HTML app", async () => {
 test("unknown path returns 404", async () => {
   const res = await request("GET", "/does-not-exist", null);
   assert.equal(res.status, 404);
+});
+
+// ---------- Security & hardening ------------------------------------------
+
+test("security headers are set on API responses", async () => {
+  const res = await request("POST", "/api/discover", { interests: "food" });
+  assert.equal(res.headers["x-content-type-options"], "nosniff");
+  assert.equal(res.headers["x-frame-options"], "DENY");
+  assert.match(res.headers["content-security-policy"] || "", /default-src 'self'/);
+});
+
+test("security headers are set on static/HTML responses", async () => {
+  const res = await request("GET", "/", null);
+  assert.equal(res.headers["x-content-type-options"], "nosniff");
+  assert.match(res.headers["content-security-policy"] || "", /frame-ancestors 'none'/);
+});
+
+test("clampStr caps overly long input", () => {
+  const long = "x".repeat(5000);
+  assert.ok(clampStr(long).length <= 800);
+  assert.equal(clampStr(123), "");
+});
+
+test("clampPrefs whitelists known fields and drops junk", () => {
+  const out = clampPrefs({ interests: "food", evil: "<script>", language: "Spanish" });
+  assert.equal(out.interests, "food");
+  assert.equal(out.language, "Spanish");
+  assert.equal(out.evil, undefined);
+});
+
+test("providerChain is empty when no keys are configured (test env)", () => {
+  // In this suite API_KEY="" and no provider keys are set, so no live calls.
+  assert.equal(providerChain().length, 0);
 });

@@ -56,13 +56,49 @@ const PROVIDERS = {
 };
 
 const PORT = process.env.PORT || 3000;
-const PROVIDER = (process.env.PROVIDER || "openrouter").toLowerCase();
-const PROVIDER_CFG = PROVIDERS[PROVIDER] || PROVIDERS.openrouter;
-const API_KEY = process.env.API_KEY || "";
-const MODEL = process.env.MODEL || PROVIDER_CFG.defaultModel;
 const TEMPERATURE = process.env.TEMPERATURE ? parseFloat(process.env.TEMPERATURE) : 0.8;
 // Set DEBUG=false in .env to quiet the verbose per-request logs.
 const DEBUG = (process.env.DEBUG || "true").toLowerCase() !== "false";
+
+// ---------- Tunable limits (named constants, not magic numbers) -----------
+const REQUEST_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 15000; // abort a hung LLM call
+const MAX_INPUT_CHARS = 800;   // cap per user-supplied string (anti-abuse + token thrift)
+const MAX_TOKENS_JSON = 1500;  // bound discovery/passport responses
+const MAX_TOKENS_CHAT = 400;   // bound chat replies
+const HISTORY_TURNS = 6;       // chat context window
+const MAX_BODY_BYTES = 1e6;    // reject oversized request bodies
+
+// ---------- Provider failover chain ---------------------------------------
+// Per-provider keys take priority; the generic API_KEY applies to the primary
+// PROVIDER (back-compat). If the primary fails, we fail over to any other
+// provider that has a key configured.
+const PROVIDER_KEYS = {
+  openrouter: process.env.OPENROUTER_API_KEY || "",
+  groq: process.env.GROQ_API_KEY || "",
+  nvidia: process.env.NVIDIA_API_KEY || "",
+  gemini: process.env.GEMINI_API_KEY || "",
+};
+const PRIMARY_PROVIDER = (process.env.PROVIDER || "openrouter").toLowerCase();
+if (process.env.API_KEY && !PROVIDER_KEYS[PRIMARY_PROVIDER]) {
+  PROVIDER_KEYS[PRIMARY_PROVIDER] = process.env.API_KEY;
+}
+const PRIMARY_MODEL = process.env.MODEL || (PROVIDERS[PRIMARY_PROVIDER] || {}).defaultModel;
+
+// Ordered list of usable providers: primary first, then others that have a key.
+function providerChain() {
+  const ordered = [PRIMARY_PROVIDER, ...Object.keys(PROVIDERS).filter((p) => p !== PRIMARY_PROVIDER)];
+  return ordered
+    .filter((name) => PROVIDERS[name] && PROVIDER_KEYS[name])
+    .map((name) => ({
+      name,
+      url: PROVIDERS[name].url,
+      key: PROVIDER_KEYS[name],
+      // Per-provider MODEL override (e.g. GROQ_MODEL); else primary override; else default.
+      model:
+        process.env[`${name.toUpperCase()}_MODEL`] ||
+        (name === PRIMARY_PROVIDER ? PRIMARY_MODEL : PROVIDERS[name].defaultModel),
+    }));
+}
 
 // ---------- Logging helpers -----------------------------------------------
 
@@ -84,80 +120,79 @@ function maskKey(k) {
 
 // ---------- LLM helper ----------------------------------------------------
 
+const RANK_HEADERS = { "HTTP-Referer": "http://localhost:3000", "X-Title": "CultureCompass" };
+
+// Single POST to a provider with a hard timeout (AbortController). Shared by
+// both the JSON and plain-text callers so timeout/headers live in one place.
+async function postToProvider(p, body) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(p.url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${p.key}`, "Content-Type": "application/json", ...RANK_HEADERS },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Calls the LLM expecting a JSON object back. Walks the provider failover
+// chain; within each provider, first tries strict JSON mode then downgrades.
 async function callLLM(messages, { retries = 1, label = "llm" } = {}) {
-  if (!API_KEY) {
-    log(`✗ [${label}] no API key set — skipping live call, using fallback`);
+  const chain = providerChain();
+  if (chain.length === 0) {
+    log(`✗ [${label}] no provider API keys set — using fallback`);
     throw new Error("NO_API_KEY");
   }
   let lastErr;
   const promptChars = messages.reduce((n, m) => n + (m.content?.length || 0), 0);
-  debug(`[${label}] → provider=${PROVIDER} model=${MODEL} temp=${TEMPERATURE} key=${maskKey(API_KEY)}`);
-  debug(`[${label}]   endpoint=${PROVIDER_CFG.url}`);
-  debug(`[${label}]   messages=${messages.length} promptChars=${promptChars}`);
+  debug(`[${label}] chain=[${chain.map((c) => c.name).join(" → ")}] messages=${messages.length} promptChars=${promptChars}`);
 
-  // First attempts request strict JSON mode; if the provider/model rejects
-  // response_format we retry without it (extractJSON still parses prose).
-  for (let attempt = 0; attempt <= retries + 1; attempt++) {
-    const useJsonMode = attempt <= retries;
-    const started = Date.now();
-    try {
-      const body = {
-        model: MODEL,
-        messages,
-        temperature: TEMPERATURE,
-      };
-      if (useJsonMode) body.response_format = { type: "json_object" };
-
-      debug(`[${label}] attempt ${attempt + 1}/${retries + 2} POST (jsonMode=${useJsonMode})…`);
-      const res = await fetch(PROVIDER_CFG.url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${API_KEY}`,
-          "Content-Type": "application/json",
-          // OpenRouter-specific ranking headers (ignored by other providers)
-          "HTTP-Referer": "http://localhost:3000",
-          "X-Title": "CultureCompass",
-        },
-        body: JSON.stringify(body),
-      });
-      const ms = Date.now() - started;
-
-      if (!res.ok) {
-        const errText = await res.text();
-        const retryAfter = res.headers.get("retry-after");
-        log(`✗ [${label}] attempt ${attempt + 1} HTTP ${res.status} in ${ms}ms` +
-            (retryAfter ? ` (retry-after ${retryAfter}s)` : ""));
-        debug(`[${label}]   body: ${errText.slice(0, 400)}`);
-        throw new Error(`LLM ${res.status}: ${errText}`);
-      }
-
-      const data = await res.json();
-      const content = data.choices?.[0]?.message?.content ?? "";
-      const usage = data.usage || {};
-      log(`✓ [${label}] HTTP ${res.status} in ${ms}ms · model=${data.model || MODEL} · ` +
-          `tokens(in/out/total)=${usage.prompt_tokens ?? "?"}/${usage.completion_tokens ?? "?"}/${usage.total_tokens ?? "?"} · ` +
-          `contentChars=${content.length}`);
-      if (!content) {
-        debug(`[${label}]   ⚠ empty content. finish_reason=${data.choices?.[0]?.finish_reason} raw=${JSON.stringify(data).slice(0, 300)}`);
-      }
+  for (const p of chain) {
+    debug(`[${label}] → provider=${p.name} model=${p.model} key=${maskKey(p.key)} endpoint=${p.url}`);
+    for (let attempt = 0; attempt <= retries + 1; attempt++) {
+      const useJsonMode = attempt <= retries;
+      const started = Date.now();
       try {
+        const body = { model: p.model, messages, temperature: TEMPERATURE, max_tokens: MAX_TOKENS_JSON };
+        if (useJsonMode) body.response_format = { type: "json_object" };
+
+        debug(`[${label}] ${p.name} attempt ${attempt + 1}/${retries + 2} (jsonMode=${useJsonMode})…`);
+        const res = await postToProvider(p, body);
+        const ms = Date.now() - started;
+
+        if (!res.ok) {
+          const errText = await res.text();
+          const retryAfter = res.headers.get("retry-after");
+          log(`✗ [${label}] ${p.name} HTTP ${res.status} in ${ms}ms` +
+              (retryAfter ? ` (retry-after ${retryAfter}s)` : ""));
+          debug(`[${label}]   body: ${errText.slice(0, 400)}`);
+          throw new Error(`LLM ${res.status}`);
+        }
+
+        const data = await res.json();
+        const content = data.choices?.[0]?.message?.content ?? "";
+        const usage = data.usage || {};
+        log(`✓ [${label}] ${p.name} HTTP 200 in ${ms}ms · model=${data.model || p.model} · ` +
+            `tokens(in/out)=${usage.prompt_tokens ?? "?"}/${usage.completion_tokens ?? "?"} · contentChars=${content.length}`);
         const parsed = extractJSON(content);
         debug(`[${label}]   ✓ parsed JSON keys: ${Object.keys(parsed).join(", ")}`);
         return parsed;
-      } catch (parseErr) {
-        log(`✗ [${label}] JSON parse failed: ${parseErr.message}`);
-        debug(`[${label}]   raw content (first 500): ${content.slice(0, 500)}`);
-        throw parseErr;
-      }
-    } catch (err) {
-      lastErr = err;
-      // (HTTP errors already logged above; this catches network/parse errors too)
-      if (!/^LLM \d/.test(err.message)) {
-        log(`✗ [${label}] attempt ${attempt + 1} error: ${err.message}`);
+      } catch (err) {
+        lastErr = err;
+        if (err.name === "AbortError") {
+          log(`✗ [${label}] ${p.name} timed out after ${REQUEST_TIMEOUT_MS}ms`);
+        } else if (!/^LLM \d/.test(err.message)) {
+          log(`✗ [${label}] ${p.name} attempt ${attempt + 1} error: ${err.message}`);
+        }
       }
     }
+    log(`↪ [${label}] ${p.name} exhausted — trying next provider…`);
   }
-  log(`✗ [${label}] all attempts exhausted → falling back`);
+  log(`✗ [${label}] all providers exhausted → falling back`);
   throw lastErr;
 }
 
@@ -273,49 +308,81 @@ function chatMessages({ destination, language, history, question }) {
     ACCURACY_RULE +
     languageRule(language);
   const msgs = [{ role: "system", content: sys }];
-  for (const turn of (history || []).slice(-6)) {
-    if (turn.role && turn.content) msgs.push({ role: turn.role, content: String(turn.content).slice(0, 800) });
+  for (const turn of (history || []).slice(-HISTORY_TURNS)) {
+    if (turn.role && turn.content) msgs.push({ role: turn.role, content: String(turn.content).slice(0, MAX_INPUT_CHARS) });
   }
-  msgs.push({ role: "user", content: String(question || "").slice(0, 800) });
+  msgs.push({ role: "user", content: String(question || "").slice(0, MAX_INPUT_CHARS) });
   return msgs;
 }
 
-// A plain-text LLM call (chat replies aren't JSON).
+// A plain-text LLM call (chat replies aren't JSON). Walks the failover chain.
 async function callLLMText(messages, { label = "chat" } = {}) {
-  if (!API_KEY) throw new Error("NO_API_KEY");
-  const started = Date.now();
-  debug(`[${label}] → provider=${PROVIDER} model=${MODEL} messages=${messages.length}`);
-  const res = await fetch(PROVIDER_CFG.url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${API_KEY}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "http://localhost:3000",
-      "X-Title": "CultureCompass",
-    },
-    body: JSON.stringify({ model: MODEL, messages, temperature: TEMPERATURE }),
-  });
-  const ms = Date.now() - started;
-  if (!res.ok) {
-    const t = await res.text();
-    log(`✗ [${label}] HTTP ${res.status} in ${ms}ms`);
-    throw new Error(`LLM ${res.status}: ${t}`);
+  const chain = providerChain();
+  if (chain.length === 0) throw new Error("NO_API_KEY");
+  let lastErr;
+  for (const p of chain) {
+    const started = Date.now();
+    try {
+      debug(`[${label}] → provider=${p.name} model=${p.model} messages=${messages.length}`);
+      const res = await postToProvider(p, {
+        model: p.model, messages, temperature: TEMPERATURE, max_tokens: MAX_TOKENS_CHAT,
+      });
+      const ms = Date.now() - started;
+      if (!res.ok) {
+        log(`✗ [${label}] ${p.name} HTTP ${res.status} in ${ms}ms`);
+        throw new Error(`LLM ${res.status}`);
+      }
+      const data = await res.json();
+      const content = data.choices?.[0]?.message?.content?.trim() ?? "";
+      log(`✓ [${label}] ${p.name} HTTP 200 in ${ms}ms · chars=${content.length}`);
+      if (content) return content;
+      throw new Error("empty content");
+    } catch (err) {
+      lastErr = err;
+      if (err.name === "AbortError") log(`✗ [${label}] ${p.name} timed out after ${REQUEST_TIMEOUT_MS}ms`);
+      else log(`↪ [${label}] ${p.name} failed (${err.message}) — trying next…`);
+    }
   }
-  const data = await res.json();
-  const content = data.choices?.[0]?.message?.content?.trim() ?? "";
-  log(`✓ [${label}] HTTP 200 in ${ms}ms · chars=${content.length}`);
-  return content;
+  throw lastErr;
 }
 
 // ---------- HTTP server ---------------------------------------------------
+
+// Security headers applied to every response. CSP allows inline script/style
+// because the single-page app inlines them; everything else is locked to self.
+function securityHeaders() {
+  return {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Content-Security-Policy":
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
+      "img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+  };
+}
 
 function sendJSON(res, status, obj) {
   const body = JSON.stringify(obj);
   res.writeHead(status, {
     "Content-Type": "application/json",
     "Content-Length": Buffer.byteLength(body),
+    ...securityHeaders(),
   });
   res.end(body);
+}
+
+// Clamp a user string to guard against abuse and token waste.
+function clampStr(v, n = MAX_INPUT_CHARS) {
+  return typeof v === "string" ? v.slice(0, n) : "";
+}
+// Whitelist + clamp traveller preference fields.
+function clampPrefs(p) {
+  if (!p || typeof p !== "object") return {};
+  const out = {};
+  for (const k of ["interests", "budget", "tripLength", "season", "travelStyle", "language"]) {
+    if (p[k] != null) out[k] = clampStr(String(p[k]));
+  }
+  return out;
 }
 
 function readBody(req) {
@@ -323,7 +390,7 @@ function readBody(req) {
     let data = "";
     req.on("data", (c) => {
       data += c;
-      if (data.length > 1e6) req.destroy();
+      if (data.length > MAX_BODY_BYTES) req.destroy();
     });
     req.on("end", () => {
       try {
@@ -339,7 +406,7 @@ function readBody(req) {
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method === "POST" && req.url === "/api/discover") {
-      const prefs = await readBody(req);
+      const prefs = clampPrefs(await readBody(req));
       log(`▶ POST /api/discover  prefs=${JSON.stringify(prefs)}`);
       try {
         const out = await callLLM(discoveryMessages(prefs), { label: "discover" });
@@ -352,7 +419,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && req.url === "/api/package") {
-      const { destination, prefs } = await readBody(req);
+      const raw = await readBody(req);
+      const destination = clampStr(String(raw.destination || ""), 120);
+      const prefs = clampPrefs(raw.prefs);
       log(`▶ POST /api/package  destination=${destination}`);
       try {
         const out = await callLLM(packageMessages(destination, prefs || {}), { label: "package" });
@@ -365,8 +434,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && req.url === "/api/chat") {
-      const body = await readBody(req);
-      log(`▶ POST /api/chat  destination=${body.destination || "-"} q="${(body.question||"").slice(0,60)}"`);
+      const raw = await readBody(req);
+      const body = {
+        destination: clampStr(String(raw.destination || ""), 120),
+        language: clampStr(String(raw.language || "English"), 40),
+        question: clampStr(String(raw.question || "")),
+        history: Array.isArray(raw.history) ? raw.history : [],
+      };
+      log(`▶ POST /api/chat  destination=${body.destination || "-"} q="${body.question.slice(0,60)}"`);
       try {
         const reply = await callLLMText(chatMessages(body), { label: "chat" });
         log(`■ /api/chat → live reply sent`);
@@ -386,22 +461,28 @@ const server = http.createServer(async (req, res) => {
     let file = req.url === "/" ? "/index.html" : req.url.split("?")[0];
     const filePath = path.join(__dirname, "public", path.normalize(file));
     if (!filePath.startsWith(path.join(__dirname, "public"))) {
-      res.writeHead(403);
+      res.writeHead(403, securityHeaders());
       return res.end("Forbidden");
     }
     fs.readFile(filePath, (err, content) => {
       if (err) {
-        res.writeHead(404);
+        res.writeHead(404, securityHeaders());
         return res.end("Not found");
       }
       const ext = path.extname(filePath);
       const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
-      res.writeHead(200, { "Content-Type": types[ext] || "text/plain" });
+      res.writeHead(200, {
+        "Content-Type": types[ext] || "text/plain",
+        // HTML must revalidate; static assets can be cached.
+        "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=3600",
+        ...securityHeaders(),
+      });
       res.end(content);
     });
   } catch (err) {
-    console.error(err);
-    sendJSON(res, 500, { error: err.message });
+    // Log the real error server-side; never leak internals to the client.
+    console.error("Unhandled server error:", err);
+    sendJSON(res, 500, { error: "Internal server error" });
   }
 });
 
@@ -511,11 +592,16 @@ function fallbackPackage(destination, err) {
 // When imported by tests (require("./server")), we export internals instead.
 if (require.main === module) {
   server.listen(PORT, () => {
+    const chain = providerChain();
     console.log(`\n  CultureCompass running → http://localhost:${PORT}`);
-    console.log(`  Provider: ${PROVIDER}  (${PROVIDER_CFG.url})`);
-    console.log(`  Model: ${MODEL}`);
-    console.log(`  Temperature: ${TEMPERATURE}`);
-    console.log(`  API key: ${API_KEY ? "loaded ✓" : "MISSING ✗ (will use demo fallbacks)"}\n`);
+    if (chain.length) {
+      console.log(`  Provider failover chain:`);
+      chain.forEach((p, i) =>
+        console.log(`    ${i + 1}. ${p.name}  model=${p.model}  key=${maskKey(p.key)}`));
+    } else {
+      console.log(`  Providers: NONE configured ✗ (will use demo fallbacks)`);
+    }
+    console.log(`  Temperature: ${TEMPERATURE} · timeout: ${REQUEST_TIMEOUT_MS}ms\n`);
   });
 }
 
@@ -528,5 +614,8 @@ module.exports = {
   packageMessages,
   chatMessages,
   languageRule,
+  clampStr,
+  clampPrefs,
+  providerChain,
   PROVIDERS,
 };

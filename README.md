@@ -126,12 +126,55 @@ promptwars/
 ├── server.js          # Zero-dep Node server + LLM calls + demo fallbacks
 ├── public/
 │   └── index.html     # Single-page UI (preferences → discovery → passport)
+├── test/
+│   └── server.test.js # Node built-in test runner (npm test)
 ├── .env               # Your real config (gitignored)
 ├── .env.example       # Template to copy
 ├── .gitignore
 ├── package.json
 └── README.md
 ```
+
+---
+
+## ✅ Testing
+
+Tests use the **built-in Node test runner** — no dev dependencies.
+
+```bash
+npm test
+```
+
+Covers: JSON extraction (fenced / prose / error cases), prompt builders,
+language rule, chat message assembly + history trimming, every fallback shape,
+the provider registry, and **HTTP integration** for `/api/discover`,
+`/api/package`, `/api/chat`, static serving, and 404s. The suite forces the
+offline fallback path, so it runs fast and never needs a network or API key.
+
+---
+
+## ♿ Accessibility
+
+- Semantic landmarks (`<main>`, `<header>`, `<section aria-labelledby>`), a
+  skip-to-content link, and a logical heading order.
+- Every form control has an associated `<label for>`; hints via `aria-describedby`.
+- Destination cards are real `<button>`s (keyboard + screen-reader operable),
+  decorative emoji are `aria-hidden`.
+- Loading/status use `role="status"`/`aria-live`; focus moves to each new step.
+- Visible keyboard focus rings and `prefers-reduced-motion` support.
+- **Audio story guide** (browser TTS) and **answers in the traveller's own
+  language** further widen access.
+
+---
+
+## 🌟 AI Cultural Companion features
+
+- **Multilingual generation** — the whole passport + chat answer in the
+  traveller's chosen language (10 languages).
+- **Audio story guide** — one-tap narration of the immersive story via the
+  browser's speech synthesis (zero cost, matches the chosen language).
+- **Conversational companion** — a floating chat (`/api/chat`) grounded in the
+  chosen destination for "during the trip" questions.
 
 ---
 

@@ -179,6 +179,16 @@ const ACCURACY_RULE =
   "When something is legend, folklore, or atmospheric retelling, clearly frame it as such " +
   "(e.g. 'local lore says...'). Never invent specific business names, prices, or dates as if factual.";
 
+// Returns a language instruction. JSON *keys* stay English (so the UI can read
+// them); only the human-readable *values* are translated.
+function languageRule(language) {
+  if (!language || /^english$/i.test(language)) return "";
+  return (
+    ` Write ALL human-readable text values in ${language}. ` +
+    `Keep every JSON key/field name exactly in English as specified — only translate the values.`
+  );
+}
+
 function discoveryMessages(prefs) {
   return [
     {
@@ -198,7 +208,8 @@ function discoveryMessages(prefs) {
         `"analysis":"one intelligent sentence reflecting their inputs back",` +
         `"destinations":[{"name":"City, Country","tagline":"short evocative line",` +
         `"why_you":"2 sentences on why THIS traveller specifically fits","best_season":"...",` +
-        `"vibe_tags":["tag1","tag2","tag3"]}]}`,
+        `"vibe_tags":["tag1","tag2","tag3"]}]}` +
+        languageRule(prefs.language),
     },
     {
       role: "user",
@@ -234,8 +245,9 @@ function packageMessages(destination, prefs) {
         `"why_it_matters":"1-2 sentences on its cultural importance",` +
         `"intro_message":"a warm, ready-to-send personalized message to arrange it"},` +
         `"etiquette":["3 short practical local etiquette tips"],` +
-        `"phrases":[{"phrase":"local phrase","meaning":"English meaning"}],` +
-        `"ai_tip":"one clever, non-obvious insider travel tip for this destination"}`,
+        `"phrases":[{"phrase":"local phrase in the destination's language","meaning":"its meaning"}],` +
+        `"ai_tip":"one clever, non-obvious insider travel tip for this destination"}` +
+        languageRule(prefs.language),
     },
     {
       role: "user",
@@ -248,6 +260,51 @@ function packageMessages(destination, prefs) {
         `duration, why it matters, and a draft intro message), etiquette tips, 3 basic local phrases, and one AI travel tip.`,
     },
   ];
+}
+
+// Conversational companion. Grounded in the chosen destination; answers in the
+// traveller's chosen language. Returns plain prose (not JSON).
+function chatMessages({ destination, language, history, question }) {
+  const sys =
+    "You are CultureCompass, a friendly, knowledgeable local travel companion" +
+    (destination ? ` for ${destination}` : "") +
+    ". Answer the traveller's questions about attractions, culture, food, etiquette, " +
+    "logistics and hidden gems in a warm, concise, practical way (2-5 sentences). " +
+    ACCURACY_RULE +
+    languageRule(language);
+  const msgs = [{ role: "system", content: sys }];
+  for (const turn of (history || []).slice(-6)) {
+    if (turn.role && turn.content) msgs.push({ role: turn.role, content: String(turn.content).slice(0, 800) });
+  }
+  msgs.push({ role: "user", content: String(question || "").slice(0, 800) });
+  return msgs;
+}
+
+// A plain-text LLM call (chat replies aren't JSON).
+async function callLLMText(messages, { label = "chat" } = {}) {
+  if (!API_KEY) throw new Error("NO_API_KEY");
+  const started = Date.now();
+  debug(`[${label}] → provider=${PROVIDER} model=${MODEL} messages=${messages.length}`);
+  const res = await fetch(PROVIDER_CFG.url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "http://localhost:3000",
+      "X-Title": "CultureCompass",
+    },
+    body: JSON.stringify({ model: MODEL, messages, temperature: TEMPERATURE }),
+  });
+  const ms = Date.now() - started;
+  if (!res.ok) {
+    const t = await res.text();
+    log(`✗ [${label}] HTTP ${res.status} in ${ms}ms`);
+    throw new Error(`LLM ${res.status}: ${t}`);
+  }
+  const data = await res.json();
+  const content = data.choices?.[0]?.message?.content?.trim() ?? "";
+  log(`✓ [${label}] HTTP 200 in ${ms}ms · chars=${content.length}`);
+  return content;
 }
 
 // ---------- HTTP server ---------------------------------------------------
@@ -304,6 +361,24 @@ const server = http.createServer(async (req, res) => {
       } catch (err) {
         log(`■ /api/package → FALLBACK sent (reason: ${err.message.slice(0, 120)})`);
         return sendJSON(res, 200, fallbackPackage(destination, err));
+      }
+    }
+
+    if (req.method === "POST" && req.url === "/api/chat") {
+      const body = await readBody(req);
+      log(`▶ POST /api/chat  destination=${body.destination || "-"} q="${(body.question||"").slice(0,60)}"`);
+      try {
+        const reply = await callLLMText(chatMessages(body), { label: "chat" });
+        log(`■ /api/chat → live reply sent`);
+        return sendJSON(res, 200, { reply });
+      } catch (err) {
+        log(`■ /api/chat → FALLBACK reply (reason: ${err.message.slice(0, 100)})`);
+        return sendJSON(res, 200, {
+          reply:
+            "I'm having trouble reaching my knowledge right now — please try again in a moment. " +
+            "In the meantime, your Cultural Passport above has attractions, food, and a hidden gem to explore.",
+          _fallback: true,
+        });
       }
     }
 
@@ -432,10 +507,26 @@ function fallbackPackage(destination, err) {
   };
 }
 
-server.listen(PORT, () => {
-  console.log(`\n  CultureCompass running → http://localhost:${PORT}`);
-  console.log(`  Provider: ${PROVIDER}  (${PROVIDER_CFG.url})`);
-  console.log(`  Model: ${MODEL}`);
-  console.log(`  Temperature: ${TEMPERATURE}`);
-  console.log(`  API key: ${API_KEY ? "loaded ✓" : "MISSING ✗ (will use demo fallbacks)"}\n`);
-});
+// Only start listening when run directly (node server.js).
+// When imported by tests (require("./server")), we export internals instead.
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`\n  CultureCompass running → http://localhost:${PORT}`);
+    console.log(`  Provider: ${PROVIDER}  (${PROVIDER_CFG.url})`);
+    console.log(`  Model: ${MODEL}`);
+    console.log(`  Temperature: ${TEMPERATURE}`);
+    console.log(`  API key: ${API_KEY ? "loaded ✓" : "MISSING ✗ (will use demo fallbacks)"}\n`);
+  });
+}
+
+module.exports = {
+  server,
+  extractJSON,
+  fallbackDiscovery,
+  fallbackPackage,
+  discoveryMessages,
+  packageMessages,
+  chatMessages,
+  languageRule,
+  PROVIDERS,
+};

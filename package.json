@@ -1,0 +1,16 @@
+{
+  "name": "culturecompass",
+  "version": "1.0.0",
+  "description": "GenAI travel discovery & cultural connection platform — discovers destinations that fit the traveller, then generates a personalized AI Cultural Passport.",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["genai", "travel", "hackathon", "culture", "llm"],
+  "license": "MIT"
+}

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"require\\('./server.js'\\)\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/discover -H \"Content-Type: application/json\" -d '{\"interests\":\"food\",\"budget\":\"Mid-range\",\"tripLength\":\"week\",\"season\":\"Summer\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/package -H \"Content-Type: application/json\" -d '{\"destination\":\"Kyoto, Japan\",\"prefs\":{}}')",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(kill %1)",
+      "Bash(curl -s -X POST http://localhost:3000/api/discover -H \"Content-Type: application/json\" -d '{\"interests\":\"food\",\"travelStyle\":\"Couple\"}')",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('persona:',j.persona?.name,'| analysis:',!!j.analysis,'| dests:',j.destinations.length\\)}\\)\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/package -H \"Content-Type: application/json\" -d '{\"destination\":\"Jaipur, India\",\"prefs\":{}}')",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('food:',j.food?.length,'| connect.title:',!!j.connect?.title,'| learn:',j.connect?.you_will_learn?.length,'| phrases:',j.phrases?.length,'| ai_tip:',!!j.ai_tip\\)}\\)\")",
+      "Bash(wait)",
+      "Bash(time curl -s -X POST http://localhost:3000/api/discover -H \"Content-Type: application/json\" -d '{\"interests\":\"history and street food\",\"budget\":\"Mid-range\",\"tripLength\":\"About a week\",\"season\":\"Autumn\",\"travelStyle\":\"Couple\"}')",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('fallback?',!!j._fallback,'| persona:',j.persona?.name,'| dests:',\\(j.destinations||[]\\).map\\(x=>x.name\\).join\\(', '\\)\\)}\\)\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/discover -H \"Content-Type: application/json\" -d '{\"interests\":\"history and street food\",\"budget\":\"Mid-range\",\"tripLength\":\"About a week\",\"season\":\"Autumn\",\"travelStyle\":\"Couple\"}')"
+    ]
+  }
+}

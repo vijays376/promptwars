@@ -175,3 +175,4 @@ Other tips:
 - **Quiet the logs** → set `DEBUG=false` in `.env` (keeps the ✓/✗ summary lines).
 - **`EADDRINUSE :::3000`** → a previous server is still running; stop it, or set
   a different `PORT` in `.env`.
+

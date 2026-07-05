@@ -14,7 +14,10 @@
       "Bash(time curl -s -X POST http://localhost:3000/api/discover -H \"Content-Type: application/json\" -d '{\"interests\":\"history and street food\",\"budget\":\"Mid-range\",\"tripLength\":\"About a week\",\"season\":\"Autumn\",\"travelStyle\":\"Couple\"}')",
       "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('fallback?',!!j._fallback,'| persona:',j.persona?.name,'| dests:',\\(j.destinations||[]\\).map\\(x=>x.name\\).join\\(', '\\)\\)}\\)\")",
       "Bash(curl -s -X POST http://localhost:3000/api/discover -H \"Content-Type: application/json\" -d '{\"interests\":\"history and street food\",\"budget\":\"Mid-range\",\"tripLength\":\"About a week\",\"season\":\"Autumn\",\"travelStyle\":\"Couple\"}')",
-      "Bash(npm test *)"
+      "Bash(npm test *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git checkout *)"
     ]
   }
 }

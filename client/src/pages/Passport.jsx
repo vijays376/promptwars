@@ -98,8 +98,8 @@ export default function Passport() {
       <header className="hero">
         {wiki?.image && <div className="bg" style={{ backgroundImage: `url("${wiki.image}")` }} aria-hidden="true" />}
         <div className="scrim" aria-hidden="true" />
+        <button className="back" onClick={() => nav("/discover")}>← Destinations</button>
         <div className="inner">
-          <button className="btn ghost" style={{ marginBottom: 18 }} onClick={() => nav("/discover")}>← Destinations</button>
           <p className="eyebrow">Cultural Passport</p>
           <h1>{p.destination}</h1>
           <div className="hero-meta">
@@ -173,7 +173,15 @@ export default function Passport() {
             {c.you_will_learn?.length > 0 && <ul className="plain" style={{ margin: "10px 0" }}>{c.you_will_learn.map((x, i) => <li key={i}>{x}</li>)}</ul>}
             {c.duration && <div style={{ color: "var(--muted)", fontSize: 14, marginTop: 6 }}>⏱ {c.duration}</div>}
             {c.why_it_matters && <div style={{ color: "var(--muted)", fontSize: 14 }}>💠 {c.why_it_matters}</div>}
-            <div className="intro">{c.intro_message}</div>
+            <div className="intro">
+              <div style={{ fontStyle: "normal" }}>💬 A message to send your host (in the local language):</div>
+              <div style={{ marginTop: 6 }}>{c.intro_message}</div>
+              {c.intro_message_meaning && (
+                <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 8 }}>
+                  ({prefs.language}: {c.intro_message_meaning})
+                </div>
+              )}
+            </div>
           </div>
         </Section>
 

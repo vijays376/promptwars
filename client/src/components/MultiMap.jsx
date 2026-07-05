@@ -27,9 +27,12 @@ export default function MultiMap({ center, places = [], focus }) {
     const start = center?.lat != null ? [center.lat, center.lon] : [pins[0].lat, pins[0].lon];
     if (!mapRef.current) {
       mapRef.current = L.map(elRef.current, { scrollWheelZoom: false }).setView(start, 12);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: "© OpenStreetMap · © CARTO", maxZoom: 19,
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "© OpenStreetMap contributors", maxZoom: 19,
       }).addTo(mapRef.current);
+      // The container often has its final size only after layout — recompute so
+      // tiles aren't rendered into a 0-height box (the "grey map" bug).
+      setTimeout(() => mapRef.current && mapRef.current.invalidateSize(), 60);
     }
     // (re)build markers
     Object.values(markersRef.current).forEach((m) => m.remove());

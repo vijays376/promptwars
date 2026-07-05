@@ -22,10 +22,8 @@ function suggestions(mode) {
   return ["What does CultureCompass do?", "How do you pick destinations?", "Why cultural travel?"];
 }
 
-export default function ChatDock({ mode, destination, destinations }) {
+export default function ChatDock({ open, onClose, mode, destination, destinations }) {
   const { prefs } = useApp();
-  const [open, setOpen] = useState(false);        // mobile slide-over
-  const [collapsed, setCollapsed] = useState(false); // desktop minimize
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -69,27 +67,19 @@ export default function ChatDock({ mode, destination, destinations }) {
     rec.start();
   }
 
-  if (collapsed) {
-    return <button className="dock-reopen" onClick={() => setCollapsed(false)} aria-label="Open Atlas chat">💬 Atlas</button>;
-  }
-
   return (
     <>
-      <button className="dock-toggle" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls="atlas">
-        <span aria-hidden="true">💬</span> Atlas
-      </button>
-
-      <aside id="atlas" className={`dock ${open ? "open" : ""}`} aria-label="Atlas travel companion">
+      <aside id="atlas" className={`dock ${open ? "open" : "collapsed"}`} aria-label="Atlas travel companion" aria-hidden={!open}>
         <div className="head">
           <div className="avatar" aria-hidden="true">🧭</div>
           <div className="who">
-            <div className="t">Atlas</div>
+            <div className="t">Atlas AI</div>
             <div className="s">
               {mode === "passport" && destination ? `Guiding you in ${destination}`
                 : mode === "discover" ? "Helping you choose" : "Your travel companion"}
             </div>
           </div>
-          <button className="collapse" onClick={() => setCollapsed(true)} aria-label="Minimize chat" title="Minimize">–</button>
+          <button className="collapse" onClick={onClose} aria-label="Close chat" title="Close">✕</button>
         </div>
 
         <div className="log" ref={logRef} role="log" aria-live="polite">

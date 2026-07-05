@@ -59,8 +59,8 @@ export function packageMessages(destination, prefs) {
         "tailored to this traveller, designed to turn sightseeing into authentic cultural connection. " +
         ACCURACY_RULE +
         " Respond ONLY as JSON of shape: " +
-        `{"destination":"...","attractions":[{"name":"...","why":"personalized reason (1 sentence)"}],` +
-        `"hidden_gem":{"name":"...","description":"why locals love it, why tourists miss it"},` +
+        `{"destination":"...","attractions":[{"name":"...","name_en":"the same place name in English/romanized for image search","why":"personalized reason (1 sentence)"}],` +
+        `"hidden_gem":{"name":"...","name_en":"English/romanized name for image search","description":"why locals love it, why tourists miss it"},` +
         `"story":{"title":"...","narrative":"2-3 vivid paragraphs of immersive second-person storytelling grounded in real heritage"},` +
         `"heritage":{"title":"...","significance":"cultural/historical/architectural significance, tangible & intangible"},` +
         `"food":[{"dish":"local dish name","note":"what it is / where to try it"}],` +
@@ -68,7 +68,8 @@ export function packageMessages(destination, prefs) {
         `"connect":{"title":"the authentic activity, e.g. 'Learn block printing from a local artisan'",` +
         `"you_will_learn":["2-3 things they'll learn or do"],"duration":"e.g. ~2 hours",` +
         `"why_it_matters":"1-2 sentences on its cultural importance",` +
-        `"intro_message":"a warm, ready-to-send personalized message to arrange it"},` +
+        `"intro_message":"a warm, ready-to-send message to arrange it, WRITTEN IN THE DESTINATION'S OWN LOCAL LANGUAGE (so a local host can read it)",` +
+        `"intro_message_meaning":"the translation/meaning of intro_message in the traveller's chosen language"},` +
         `"etiquette":["3 short practical local etiquette tips"],` +
         `"phrases":[{"phrase":"local phrase in the destination's language","meaning":"its meaning"}],` +
         `"ai_tip":"one clever, non-obvious insider travel tip for this destination"}` +

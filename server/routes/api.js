@@ -60,9 +60,9 @@ router.post("/package", async (req, res) => {
   // Per-place enrichment (photo galleries + coordinates) for attractions, the
   // hidden gem, and the authentic experience — powers the gallery + map pins.
   const items = [
-    ...(out.attractions || []).map((a) => ({ name: a.name, category: "attraction" })),
-    ...(out.hidden_gem?.name ? [{ name: out.hidden_gem.name, category: "gem" }] : []),
-    ...(out.connect?.title ? [{ name: out.connect.title, category: "experience" }] : []),
+    ...(out.attractions || []).map((a) => ({ name: a.name, search: a.name_en || a.name, category: "attraction" })),
+    ...(out.hidden_gem?.name ? [{ name: out.hidden_gem.name, search: out.hidden_gem.name_en || out.hidden_gem.name, category: "gem" }] : []),
+    ...(out.connect?.title ? [{ name: out.connect.title, search: out.connect.title, category: "experience" }] : []),
   ];
   out.enrich = out.enrich || {};
   out.enrich.places = await enrichPlaces(items, destination).catch(() => []);

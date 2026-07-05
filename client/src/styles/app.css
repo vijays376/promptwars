@@ -26,7 +26,7 @@
 
   --disp: "Fraunces", Georgia, serif;
   --body: "Inter", system-ui, -apple-system, sans-serif;
-  --dock-w: 400px;
+  --dock-w: 470px;
   --read: 68ch;            /* comfortable reading measure */
   --pad: clamp(20px, 4vw, 56px);
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
@@ -59,6 +59,13 @@ img { max-width: 100%; display: block; }
 .masthead { position: sticky; top: 0; z-index: 30; background: rgba(26, 20, 32, 0.82); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
 .masthead .inner { display: flex; align-items: center; gap: 12px; padding: 14px var(--pad); }
 .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--ink); }
+.atlas-btn {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font: inherit; font-weight: 700;
+  cursor: pointer; border: 1px solid var(--line); border-radius: 999px; padding: 9px 16px;
+  background: linear-gradient(135deg, rgba(240,169,75,.18), rgba(232,114,76,.18)); color: var(--ink);
+}
+.atlas-btn:hover { border-color: var(--coral); background: linear-gradient(135deg, var(--apricot), var(--coral)); color: #1b1622; }
+.atlas-btn .dot { width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 34% 30%, var(--apricot), var(--rose)); display: grid; place-items: center; font-size: 12px; }
 .mark { width: 40px; height: 40px; border-radius: 50%; background: radial-gradient(circle at 34% 30%, var(--apricot), var(--coral)); display: grid; place-items: center; font-size: 20px; }
 .wordmark { font-family: var(--disp); font-size: 21px; font-weight: 600; }
 .wordmark small { display: block; font-family: var(--body); font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
@@ -106,6 +113,13 @@ textarea { min-height: 78px; resize: vertical; }
 .hero .bg { position: absolute; inset: 0; background-size: cover; background-position: center; transform: scale(1.05); }
 .hero .scrim { position: absolute; inset: 0; background: linear-gradient(to top, var(--bg) 2%, rgba(26,20,32,.55) 40%, rgba(26,20,32,.1) 100%); }
 .hero .inner { position: relative; padding: 0 var(--pad) 46px; width: 100%; }
+.hero .back {
+  position: absolute; top: 20px; left: var(--pad); z-index: 3;
+  display: inline-flex; align-items: center; gap: 6px; font: inherit; font-weight: 600; cursor: pointer;
+  background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--line); color: var(--ink);
+  border-radius: 999px; padding: 9px 16px;
+}
+.hero .back:hover { background: var(--coral); color: #fff; border-color: var(--coral); }
 .hero h1 { font-size: clamp(44px, 8vw, 96px); text-shadow: 0 2px 30px rgba(0,0,0,.5); }
 .hero-meta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
 .pill { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--line); color: var(--ink); padding: 8px 14px; border-radius: 999px; }
@@ -195,8 +209,7 @@ ul.plain { margin: 0; padding-left: 20px; color: var(--muted); max-width: var(--
 .icon-btn.send { background: var(--coral); color: #fff; border-color: var(--coral); }
 .icon-btn.mic.on { background: var(--coral); color: #fff; border-color: var(--coral); animation: pulse 1.2s infinite; }
 
-/* Reopen tab when collapsed (desktop) */
-.dock-reopen { position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 46; background: linear-gradient(135deg, var(--apricot), var(--coral)); color: #1b1622; border: none; border-radius: 12px 0 0 12px; padding: 14px 10px; font-weight: 700; cursor: pointer; writing-mode: vertical-rl; box-shadow: var(--shadow); }
+/* (Old reopen tab removed — the dock is now opened from the "Atlas AI" navbar button.) */
 
 /* ---------- Lightbox ---------- */
 .lightbox { position: fixed; inset: 0; z-index: 90; background: rgba(12,8,14,.94); backdrop-filter: blur(6px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }

@@ -5,7 +5,11 @@
       "Bash(npm run *)",
       "Read(//c/VijayProjects/**)",
       "Bash(git add *)",
-      "Bash(git commit -q -m ' *)"
+      "Bash(git commit -q -m ' *)",
+      "Bash(curl -s --max-time 12 \"https://api.openverse.org/v1/images/?q=Amber%20Fort%20Jaipur&page_size=3\" -H \"User-Agent: CultureCompass/1.0\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{try{const j=JSON.parse\\(d\\);console.log\\('count:',j.result_count,'| sample thumb:',\\(j.results?.[0]?.thumbnail||j.results?.[0]?.url||'none'\\).slice\\(0,80\\)\\)}catch\\(e\\){console.log\\('ERR',d.slice\\(0,120\\)\\)}}\\)\")",
+      "Bash(curl -s --max-time 12 \"https://en.wikipedia.org/api/rest_v1/page/media-list/Amber_Fort\" -H \"User-Agent: CultureCompass/1.0\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{try{const j=JSON.parse\\(d\\);const imgs=\\(j.items||[]\\).filter\\(i=>i.type==='image'\\);console.log\\('images:',imgs.length,'| sample:',imgs[0]?.title||'none'\\)}catch\\(e\\){console.log\\('ERR',d.slice\\(0,120\\)\\)}}\\)\")"
     ]
   }
 }

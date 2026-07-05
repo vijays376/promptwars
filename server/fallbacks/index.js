@@ -86,6 +86,8 @@ export function fallbackPackage(destination, err) {
         "Skills like these are living heritage, passed down through generations. Learning directly keeps the tradition alive and supports the community.",
       intro_message:
         "Hello! I'm a traveller visiting soon and I deeply admire your craft. I'd love to learn from you directly and support your work — would you be open to a short hands-on session during my visit? Thank you so much for considering it.",
+      intro_message_meaning:
+        "A warm note introducing yourself and asking the host for a short hands-on session during your visit.",
     },
     etiquette: [
       "Learn 'hello' and 'thank you' in the local language — it opens doors.",

@@ -38,9 +38,15 @@ export function createRecognizer(language, { onResult, onEnd, onError } = {}) {
   rec.interimResults = false;
   rec.maxAlternatives = 1;
   rec.continuous = false;
+  // Emit only newly-finalized segments (from resultIndex) — prevents the
+  // cumulative-results bug where one utterance is reported several times.
   rec.onresult = (e) => {
-    const transcript = Array.from(e.results).map((r) => r[0].transcript).join(" ").trim();
-    onResult && onResult(transcript);
+    let segment = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) segment += e.results[i][0].transcript;
+    }
+    segment = segment.trim();
+    if (segment) onResult && onResult(segment);
   };
   rec.onend = () => onEnd && onEnd();
   rec.onerror = (e) => onError && onError(e.error || "error");

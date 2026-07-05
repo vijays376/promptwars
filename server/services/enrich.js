@@ -6,7 +6,7 @@
 //   • Open-Meteo               — current weather
 import { debug } from "../config.js";
 
-const ENRICH_TIMEOUT_MS = 6000;
+const ENRICH_TIMEOUT_MS = 8000;
 
 async function fetchJson(url, opts = {}) {
   const controller = new AbortController();
@@ -58,8 +58,40 @@ export async function wikiSummary(place) {
   return null;
 }
 
+// Openverse — a keyless aggregator of openly-licensed photos (Flickr, museums,
+// Wikimedia, etc.). Huge coverage; thumbnails are served from Openverse's CDN
+// so they load reliably (no hotlink blocking). Our primary image source.
+export async function openverseImages(query, n = 12) {
+  try {
+    const u = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&page_size=${n}&mature=false`;
+    const d = await fetchJson(u);
+    return (d?.results || []).map((r) => r.thumbnail || r.url).filter(Boolean);
+  } catch (e) {
+    debug(`openverse(${query}) failed: ${e.message}`);
+    return [];
+  }
+}
+
+// Aggregate multiple free image sources → a de-duplicated gallery of up to n
+// photos. Openverse first (volume + reliability), Wikimedia Commons as a top-up.
+export async function placeImages(query, n = 14) {
+  const [ov, cm] = await Promise.all([
+    openverseImages(query, 12).catch(() => []),
+    commonsImages(query, 6).catch(() => []),
+  ]);
+  const seen = new Set();
+  const out = [];
+  for (const url of [...ov, ...cm]) {
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    out.push(url);
+    if (out.length >= n) break;
+  }
+  return out;
+}
+
 // Search Wikimedia Commons for real photos of a subject. Returns up to n image
-// URLs (jpg/png), best-effort. Keyless. Used to build attraction galleries.
+// URLs (jpg/png), best-effort. Keyless. Used to top up the gallery.
 export async function commonsImages(query, n = 6) {
   try {
     const u =
@@ -87,9 +119,10 @@ export async function enrichPlaces(items, city) {
   const cityName = (city || "").split(",")[0].trim();
   return Promise.all(
     (items || []).map(async (it) => {
+      const q = it.search || it.name; // English/romanized name searches far better
       const [coords, images] = await Promise.all([
-        geocode(`${it.name}, ${city}`).catch(() => null),
-        commonsImages(`${it.name} ${cityName}`, 6).catch(() => []),
+        geocode(`${q}, ${city}`).catch(() => null),
+        placeImages(`${q} ${cityName}`, 14).catch(() => []),
       ]);
       return {
         name: it.name,

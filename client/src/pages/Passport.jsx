@@ -89,6 +89,7 @@ export default function Passport() {
   if (!p) return <div className="loading">Couldn't build the passport. <button className="backlink" onClick={() => nav(-1)}>Go back</button></div>;
 
   const wiki = p.enrich?.wiki;
+  const heroImage = p.enrich?.heroImage || wiki?.image;
   const weather = p.enrich?.weather;
   const center = p.enrich?.lat != null ? { lat: p.enrich.lat, lon: p.enrich.lon } : null;
   const c = p.connect || {};
@@ -96,7 +97,7 @@ export default function Passport() {
   return (
     <>
       <header className="hero">
-        {wiki?.image && <div className="bg" style={{ backgroundImage: `url("${wiki.image}")` }} aria-hidden="true" />}
+        {heroImage && <div className="bg" style={{ backgroundImage: `url("${heroImage}")` }} aria-hidden="true" />}
         <div className="scrim" aria-hidden="true" />
         <button className="back" onClick={() => nav("/discover")}>← Destinations</button>
         <div className="inner">

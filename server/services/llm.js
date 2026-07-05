@@ -72,8 +72,12 @@ export async function callLLM(messages, { retries = 1, label = "llm" } = {}) {
         return parsed;
       } catch (err) {
         lastErr = err;
-        if (err.name === "AbortError") log(`✗ [${label}] ${p.name} timed out after ${REQUEST_TIMEOUT_MS}ms`);
-        else if (!/^LLM \d/.test(err.message)) log(`✗ [${label}] ${p.name} attempt ${attempt + 1} error: ${err.message}`);
+        if (err.name === "AbortError") {
+          // A timeout won't fix itself on retry — jump straight to the next provider.
+          log(`✗ [${label}] ${p.name} timed out after ${REQUEST_TIMEOUT_MS}ms → next provider`);
+          break;
+        }
+        if (!/^LLM \d/.test(err.message)) log(`✗ [${label}] ${p.name} attempt ${attempt + 1} error: ${err.message}`);
       }
     }
     log(`↪ [${label}] ${p.name} exhausted — trying next provider…`);

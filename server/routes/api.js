@@ -4,7 +4,8 @@
 import { Router } from "express";
 import { MAX_INPUT_CHARS, log } from "../config.js";
 import { callLLM, callLLMText } from "../services/llm.js";
-import { enrichDestination, enrichPlaces, wikiSummary } from "../services/enrich.js";
+import { enrichDestination, enrichPlaces } from "../services/enrich.js";
+import { iconicImage } from "../services/images.js";
 import { discoveryMessages, packageMessages, chatMessages } from "../prompts/index.js";
 import { fallbackDiscovery, fallbackPackage } from "../fallbacks/index.js";
 
@@ -32,11 +33,10 @@ router.post("/discover", async (req, res) => {
   } catch (err) {
     out = fallbackDiscovery(err);
   }
-  // Best-effort hero image per destination so Discover shows image cards.
+  // Iconic landmark photo per destination so Discover shows real image cards.
   if (process.env.CC_NO_ENRICH !== "1" && Array.isArray(out.destinations)) {
     await Promise.all(out.destinations.map(async (d) => {
-      const w = await wikiSummary(d.name).catch(() => null);
-      if (w?.image) d.image = w.image;
+      d.image = await iconicImage(d.name).catch(() => null);
     }));
   }
   res.json(out);

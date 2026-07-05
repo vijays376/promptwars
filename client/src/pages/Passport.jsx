@@ -10,7 +10,10 @@ import MultiMap from "../components/MultiMap.jsx";
 function Section({ icon, title, children }) {
   return (
     <section className="sec">
-      <div className="sec-head"><span className="ic" aria-hidden="true">{icon}</span><h2>{title}</h2></div>
+      <div className="sec-head">
+        <span className="ic" aria-hidden="true">{icon}</span>
+        <h2>{title}</h2>
+      </div>
       {children}
     </section>
   );
@@ -33,27 +36,49 @@ export default function Passport() {
     setLoading(true);
     stopSpeaking();
     buildPackage(destination, prefs)
-      .then((data) => { if (alive) { setP(data); setLoading(false); } })
-      .catch(() => { if (alive) setLoading(false); });
-    return () => { alive = false; stopSpeaking(); };
+      .then((data) => {
+        if (alive) {
+          setP(data);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+      stopSpeaking();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [destination]);
 
   const placeBy = useMemo(() => {
     const m = {};
-    (p?.enrich?.places || []).forEach((pl) => { m[pl.name] = pl; });
+    (p?.enrich?.places || []).forEach((pl) => {
+      m[pl.name] = pl;
+    });
     return m;
   }, [p]);
 
   const attractions = (p?.attractions || []).map((a) => ({
-    name: a.name, why: a.why, category: "attraction",
-    images: placeBy[a.name]?.images || [], lat: placeBy[a.name]?.lat, lon: placeBy[a.name]?.lon,
+    name: a.name,
+    why: a.why,
+    category: "attraction",
+    images: placeBy[a.name]?.images || [],
+    lat: placeBy[a.name]?.lat,
+    lon: placeBy[a.name]?.lon,
   }));
-  const gemPlace = p?.hidden_gem?.name ? {
-    name: p.hidden_gem.name, why: p.hidden_gem.description, category: "gem",
-    images: placeBy[p.hidden_gem.name]?.images || [], lat: placeBy[p.hidden_gem.name]?.lat, lon: placeBy[p.hidden_gem.name]?.lon,
-  } : null;
-  const allPins = [...attractions, ...(gemPlace ? [gemPlace] : [])];
+
+  const hiddenGems = (p?.hidden_gems || (p?.hidden_gem?.name ? [p.hidden_gem] : [])).map((g) => ({
+    name: g.name,
+    why: g.description,
+    category: "gem",
+    images: placeBy[g.name]?.images || [],
+    lat: placeBy[g.name]?.lat,
+    lon: placeBy[g.name]?.lon,
+  }));
+
+  const allPins = [...attractions, ...hiddenGems];
 
   function showOnMap(place) {
     setMapFocus({ name: place.name, t: Date.now() });
@@ -61,11 +86,16 @@ export default function Passport() {
   }
 
   function readPage() {
-    if (reading) { stopSpeaking(); setReading(false); return; }
+    if (reading) {
+      stopSpeaking();
+      setReading(false);
+      return;
+    }
     const parts = [
-      `${p.destination}.`, p.enrich?.wiki?.extract,
+      `${p.destination}.`,
+      p.enrich?.wiki?.extract,
       `Attractions. ${attractions.map((a) => `${a.name}. ${a.why}`).join(" ")}`,
-      `Hidden gem. ${p.hidden_gem?.name}. ${p.hidden_gem?.description}`,
+      `Hidden gems. ${hiddenGems.map((g) => `${g.name}. ${g.why}`).join(" ")}`,
       `${p.story?.title}. ${p.story?.narrative}`,
       `Heritage. ${p.heritage?.significance}`,
       `Local food. ${(p.food || []).map((f) => `${f.dish}. ${f.note}`).join(" ")}`,
@@ -82,17 +112,25 @@ export default function Passport() {
     return (
       <div className="loading" role="status" aria-live="assertive">
         <div className="spinner" aria-hidden="true" />
-        Crafting your Cultural Passport for {destination}…
+        Crafting your Cultural Passport for {destination}...
       </div>
     );
   }
-  if (!p) return <div className="loading">Couldn't build the passport. <button className="backlink" onClick={() => nav(-1)}>Go back</button></div>;
+  if (!p) {
+    return (
+      <div className="loading">
+        Couldn't build the passport.{" "}
+        <button className="backlink" onClick={() => nav(-1)}>Go back</button>
+      </div>
+    );
+  }
 
   const wiki = p.enrich?.wiki;
   const heroImage = p.enrich?.heroImage || wiki?.image;
   const weather = p.enrich?.weather;
   const center = p.enrich?.lat != null ? { lat: p.enrich.lat, lon: p.enrich.lon } : null;
   const c = p.connect || {};
+  const hiddenGemTitle = hiddenGems.length > 1 ? "Hidden gems" : "Hidden gem";
 
   return (
     <>
@@ -112,7 +150,11 @@ export default function Passport() {
       </header>
 
       <div className="bleed" style={{ paddingBottom: 110 }}>
-        {p._fallback && <div className="banner" style={{ marginTop: 20 }}>⚠️ Live AI was unreachable — showing curated demo content.</div>}
+        {p._fallback && (
+          <div className="banner" style={{ marginTop: 20 }}>
+            ⚠️ {p._notice || "Live AI was unreachable - showing curated demo content."}
+          </div>
+        )}
 
         {wiki?.extract && (
           <Section icon="📚" title="About this place">
@@ -124,15 +166,27 @@ export default function Passport() {
         <Section icon="📍" title="Attractions picked for you">
           <div className="cards">
             {attractions.map((a, i) => (
-              <PlaceCard key={i} place={a} onOpenGallery={(pl) => setGallery({ place: pl, index: 0 })} onShowMap={showOnMap} />
+              <PlaceCard
+                key={i}
+                place={a}
+                onOpenGallery={(pl) => setGallery({ place: pl, index: 0 })}
+                onShowMap={showOnMap}
+              />
             ))}
           </div>
         </Section>
 
-        {gemPlace && (
-          <Section icon="💎" title="Hidden gem">
-            <div className="cards" style={{ gridTemplateColumns: "minmax(300px, 420px)" }}>
-              <PlaceCard place={gemPlace} onOpenGallery={(pl) => setGallery({ place: pl, index: 0 })} onShowMap={showOnMap} />
+        {hiddenGems.length > 0 && (
+          <Section icon="💎" title={hiddenGemTitle}>
+            <div className="cards">
+              {hiddenGems.map((g, i) => (
+                <PlaceCard
+                  key={i}
+                  place={g}
+                  onOpenGallery={(pl) => setGallery({ place: pl, index: 0 })}
+                  onShowMap={showOnMap}
+                />
+              ))}
             </div>
           </Section>
         )}
@@ -147,11 +201,6 @@ export default function Passport() {
 
         <Section icon="📖" title={p.story?.title || "An immersive story"}>
           <div className="story">{p.story?.narrative}</div>
-          {ttsSupported() && (
-            <button className="btn ghost" style={{ marginTop: 16 }} onClick={readPage} aria-pressed={reading}>
-              {reading ? "⏹ Stop narration" : "🔊 Listen to this passport"}
-            </button>
-          )}
         </Section>
 
         <Section icon="🏛" title={p.heritage?.title || "Heritage"}>
@@ -160,7 +209,7 @@ export default function Passport() {
 
         <Section icon="🍛" title="Local food to seek out">
           {(p.food || []).map((f, i) => (
-            <div className="row" key={i}><b>{f.dish}</b> — <span style={{ color: "var(--muted)" }}>{f.note}</span></div>
+            <div className="row" key={i}><b>{f.dish}</b> - <span style={{ color: "var(--muted)" }}>{f.note}</span></div>
           ))}
         </Section>
 
@@ -192,7 +241,7 @@ export default function Passport() {
 
         <Section icon="🗣" title="Basic local phrases">
           {(p.phrases || []).map((ph, i) => (
-            <div className="row" key={i}><b style={{ color: "var(--coral)" }}>{ph.phrase}</b> — <span style={{ color: "var(--muted)" }}>{ph.meaning}</span></div>
+            <div className="row" key={i}><b style={{ color: "var(--coral)" }}>{ph.phrase}</b> - <span style={{ color: "var(--muted)" }}>{ph.meaning}</span></div>
           ))}
         </Section>
 
@@ -203,14 +252,19 @@ export default function Passport() {
 
       {ttsSupported() && (
         <div className="reader" role="group" aria-label="Listen to this passport">
-          <span className="label">{reading ? "Reading the passport…" : "Listen to this passport"}</span>
+          <span className="label">{reading ? "Reading the passport..." : "Listen to this passport"}</span>
           <button onClick={readPage} aria-label={reading ? "Stop reading" : "Read the whole passport aloud"}>{reading ? "⏹" : "▶"}</button>
         </div>
       )}
 
       {gallery && (
-        <Lightbox images={gallery.place.images} index={gallery.index} name={gallery.place.name}
-          onClose={() => setGallery(null)} onIndex={(i) => setGallery((g) => ({ ...g, index: i }))} />
+        <Lightbox
+          images={gallery.place.images}
+          index={gallery.index}
+          name={gallery.place.name}
+          onClose={() => setGallery(null)}
+          onIndex={(i) => setGallery((g) => ({ ...g, index: i }))}
+        />
       )}
     </>
   );

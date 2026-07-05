@@ -4,7 +4,7 @@ import { useApp } from "../state.jsx";
 import { discover } from "../lib/api.js";
 import { createRecognizer, recognitionSupported } from "../lib/speech.js";
 
-const LANGUAGES = ["English", "Spanish", "French", "German", "Italian", "Portuguese", "Hindi", "Arabic", "Japanese", "Mandarin Chinese"];
+const LANGUAGES = ["English", "Hinglish", "Hindi", "Spanish", "French", "German", "Italian", "Portuguese", "Arabic", "Japanese", "Mandarin Chinese"];
 
 export default function Home() {
   const { prefs, setPrefs, setDiscovery } = useApp();

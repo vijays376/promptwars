@@ -82,15 +82,15 @@ export async function weather(lat, lon) {
 
 // Enrich named places (attractions, gem, experience) with photo galleries +
 // coordinates. Uses each item's English `search` name for reliable lookups.
-export async function enrichPlaces(items, city) {
+export async function enrichPlaces(items, city, prefs = {}) {
   if (process.env.CC_NO_ENRICH === "1") return [];
-  const cityName = (city || "").split(",")[0].trim();
+  const [cityName, countryName] = (city || "").split(",").map((s) => s.trim());
   return Promise.all(
     (items || []).map(async (it) => {
       const q = it.search || it.name;
       const [coords, images] = await Promise.all([
         geocode(`${q}, ${city}`).catch(() => null),
-        imageSearch(`${q} ${cityName}`, 14).catch(() => []),
+        imageSearch(`${q} ${cityName} ${countryName || ""}`.trim(), 14, { language: prefs.language }).catch(() => []),
       ]);
       return { name: it.name, category: it.category || "attraction", lat: coords?.lat ?? null, lon: coords?.lon ?? null, images };
     })
@@ -99,12 +99,12 @@ export async function enrichPlaces(items, city) {
 
 // Destination-level enrichment: coords, weather, factual summary, and an ICONIC
 // hero image (the famous landmark). `bias` (traveller interest) nudges the photo.
-export async function enrichDestination(place, bias = "") {
+export async function enrichDestination(place, prefs = {}) {
   if (process.env.CC_NO_ENRICH === "1") return { lat: null, lon: null, wiki: null, weather: null, heroImage: null };
   const [geo, wiki, iconic] = await Promise.all([
     geocode(place),
     wikiSummary(place),
-    iconicImage(bias ? `${place} ${bias}` : place).catch(() => null),
+    iconicImage(place, { language: prefs.language }).catch(() => null),
   ]);
   const out = { lat: geo?.lat ?? null, lon: geo?.lon ?? null, wiki, weather: null, heroImage: iconic || wiki?.image || null };
   if (geo) out.weather = await weather(geo.lat, geo.lon);

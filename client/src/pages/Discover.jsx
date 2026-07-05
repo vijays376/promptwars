@@ -17,7 +17,11 @@ export default function Discover() {
       <button className="backlink" onClick={() => nav("/")}>← Start over</button>
       <p className="eyebrow" style={{ marginTop: 14 }}>Step 2 · Curated for you</p>
 
-      {discovery._fallback && <div className="banner" style={{ marginTop: 12 }}>⚠️ Live AI was unreachable — showing curated demo destinations.</div>}
+      {discovery._fallback && (
+        <div className="banner" style={{ marginTop: 12 }}>
+          ⚠️ {discovery._notice || "Live AI was unreachable — showing curated demo destinations."}
+        </div>
+      )}
 
       {persona.name && (
         <div className="persona">

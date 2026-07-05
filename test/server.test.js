@@ -41,13 +41,15 @@ test("discoveryMessages includes inputs and asks for persona JSON", () => {
 test("packageMessages embeds destination and all sections", () => {
   const m = packageMessages("Jaipur, India", { interests: "history" });
   assert.match(m[1].content, /Jaipur, India/);
-  assert.match(m[0].content, /hidden_gem/);
+  assert.match(m[0].content, /hidden_gems/);
   assert.match(m[0].content, /connect/);
 });
 test("languageRule empty for English, translates otherwise", () => {
   assert.equal(languageRule("English"), "");
   assert.equal(languageRule(""), "");
   assert.match(languageRule("French"), /French/);
+  assert.match(languageRule("Hinglish"), /Hinglish/);
+  assert.match(languageRule("Hindi"), /Hindi/);
 });
 test("discoveryMessages injects language instruction when set", () => {
   assert.match(discoveryMessages({ interests: "x", language: "French" })[0].content, /French/);
@@ -70,7 +72,7 @@ test("fallbackDiscovery returns 3 destinations + persona", () => {
 });
 test("fallbackPackage returns every passport section", () => {
   const out = fallbackPackage("Kyoto, Japan", new Error("t"));
-  for (const k of ["attractions", "hidden_gem", "story", "heritage", "food", "event", "connect", "etiquette", "phrases", "ai_tip"]) {
+  for (const k of ["attractions", "hidden_gems", "story", "heritage", "food", "event", "connect", "etiquette", "phrases", "ai_tip"]) {
     assert.ok(out[k], `has ${k}`);
   }
   assert.ok(Array.isArray(out.connect.you_will_learn));

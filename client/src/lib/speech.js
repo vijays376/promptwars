@@ -5,7 +5,7 @@
 
 export const LANG_CODES = {
   English: "en-US", Spanish: "es-ES", French: "fr-FR", German: "de-DE",
-  Italian: "it-IT", Portuguese: "pt-PT", Hindi: "hi-IN", Arabic: "ar-SA",
+  Hinglish: "hi-IN", Italian: "it-IT", Portuguese: "pt-PT", Hindi: "hi-IN", Arabic: "ar-SA",
   Japanese: "ja-JP", "Mandarin Chinese": "zh-CN",
 };
 export const langCode = (name) => LANG_CODES[name] || "en-US";

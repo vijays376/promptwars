@@ -1,6 +1,3 @@
-// API routes: /api/discover, /api/package, /api/chat.
-// Each validates + clamps input, calls the LLM (with failover), and falls back
-// to curated content on total failure. /package also attaches real enrichment.
 import { Router } from "express";
 import { MAX_INPUT_CHARS, log } from "../config.js";
 import { callLLM, callLLMText } from "../services/llm.js";
@@ -11,10 +8,10 @@ import { fallbackDiscovery, fallbackPackage } from "../fallbacks/index.js";
 
 export const router = Router();
 
-// ---------- input hardening ----------
 export function clampStr(v, n = MAX_INPUT_CHARS) {
   return typeof v === "string" ? v.slice(0, n) : "";
 }
+
 export function clampPrefs(p) {
   if (!p || typeof p !== "object") return {};
   const out = {};
@@ -26,17 +23,16 @@ export function clampPrefs(p) {
 
 router.post("/discover", async (req, res) => {
   const prefs = clampPrefs(req.body);
-  log(`▶ /api/discover ${JSON.stringify(prefs)}`);
+  log(`\u25b6 /api/discover ${JSON.stringify(prefs)}`);
   let out;
   try {
     out = await callLLM(discoveryMessages(prefs), { label: "discover" });
   } catch (err) {
     out = fallbackDiscovery(err);
   }
-  // Iconic landmark photo per destination so Discover shows real image cards.
   if (process.env.CC_NO_ENRICH !== "1" && Array.isArray(out.destinations)) {
     await Promise.all(out.destinations.map(async (d) => {
-      d.image = await iconicImage(d.name).catch(() => null);
+      d.image = await iconicImage(d.name, { language: prefs.language }).catch(() => null);
     }));
   }
   res.json(out);
@@ -45,10 +41,9 @@ router.post("/discover", async (req, res) => {
 router.post("/package", async (req, res) => {
   const destination = clampStr(String(req.body?.destination || ""), 120);
   const prefs = clampPrefs(req.body?.prefs);
-  log(`▶ /api/package ${destination}`);
+  log(`\u25b6 /api/package ${destination}`);
 
-  // Destination-level enrichment (hero image, weather) runs alongside the AI call.
-  const enrichP = enrichDestination(destination).catch(() => null);
+  const enrichP = enrichDestination(destination, prefs).catch(() => null);
   let out;
   try {
     out = await callLLM(packageMessages(destination, prefs), { label: "package" });
@@ -57,15 +52,22 @@ router.post("/package", async (req, res) => {
   }
   out.enrich = await enrichP;
 
-  // Per-place enrichment (photo galleries + coordinates) for attractions, the
-  // hidden gem, and the authentic experience — powers the gallery + map pins.
+  const hiddenGems = Array.isArray(out.hidden_gems)
+    ? out.hidden_gems.slice(0, 2)
+    : out.hidden_gem?.name
+      ? [out.hidden_gem]
+      : [];
+  out.hidden_gems = hiddenGems;
+  out.hidden_gem = hiddenGems[0] || out.hidden_gem || null;
+  out.attractions = Array.isArray(out.attractions) ? out.attractions.slice(0, 6) : [];
+
   const items = [
     ...(out.attractions || []).map((a) => ({ name: a.name, search: a.name_en || a.name, category: "attraction" })),
-    ...(out.hidden_gem?.name ? [{ name: out.hidden_gem.name, search: out.hidden_gem.name_en || out.hidden_gem.name, category: "gem" }] : []),
+    ...hiddenGems.map((g) => ({ name: g.name, search: g.name_en || g.name, category: "gem" })),
     ...(out.connect?.title ? [{ name: out.connect.title, search: out.connect.title, category: "experience" }] : []),
   ];
   out.enrich = out.enrich || {};
-  out.enrich.places = await enrichPlaces(items, destination).catch(() => []);
+  out.enrich.places = await enrichPlaces(items, destination, prefs).catch(() => []);
   res.json(out);
 });
 
@@ -81,16 +83,16 @@ router.post("/chat", async (req, res) => {
     question: clampStr(String(req.body?.question || "")),
     history: Array.isArray(req.body?.history) ? req.body.history : [],
   };
-  log(`▶ /api/chat [${mode || "-"}] ${body.destination || "-"} q="${body.question.slice(0, 60)}"`);
+  log(`\u25b6 /api/chat [${mode || "-"}] ${body.destination || "-"} q="${body.question.slice(0, 60)}"`);
   try {
     const reply = await callLLMText(chatMessages(body), { label: "chat" });
     res.json({ reply });
   } catch (err) {
-    log(`■ /api/chat fallback (${err.message.slice(0, 80)})`);
+    log(`\u25a0 /api/chat fallback (${err.message.slice(0, 80)})`);
     res.json({
       reply:
-        "I'm having trouble reaching my knowledge right now — please try again in a moment. " +
-        "In the meantime, your Cultural Passport has attractions, food, and a hidden gem to explore.",
+        "I'm having trouble reaching my knowledge right now - please try again in a moment. " +
+        "In the meantime, your Cultural Passport has attractions, food, and hidden gems to explore.",
       _fallback: true,
     });
   }

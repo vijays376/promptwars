@@ -38,21 +38,21 @@ export const HISTORY_TURNS = 6;
 
 // ---------- Provider registry (all OpenAI-compatible) -----------------------
 export const PROVIDERS = {
-  openrouter: {
-    url: "https://openrouter.ai/api/v1/chat/completions",
-    defaultModel: "meta-llama/llama-3.3-70b-instruct:free",
-  },
   groq: {
     url: "https://api.groq.com/openai/v1/chat/completions",
-    defaultModel: "llama-3.3-70b-versatile",
+    defaultModel: "llama-3.1-8b-instant",
   },
   nvidia: {
     url: "https://integrate.api.nvidia.com/v1/chat/completions",
-    defaultModel: "meta/llama-3.3-70b-instruct",
+    defaultModel: "meta/llama-3.1-8b-instruct",
   },
   gemini: {
     url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-    defaultModel: "gemini-1.5-flash",
+    defaultModel: "gemini-2.5-flash",
+  },
+  openrouter: {
+    url: "https://openrouter.ai/api/v1/chat/completions",
+    defaultModel: "google/gemini-2.5-flash",
   },
 };
 
@@ -71,7 +71,12 @@ const PRIMARY_MODEL = process.env.MODEL || (PROVIDERS[PRIMARY_PROVIDER] || {}).d
 
 // Ordered failover chain: primary first, then any other provider with a key.
 export function providerChain() {
-  const ordered = [PRIMARY_PROVIDER, ...Object.keys(PROVIDERS).filter((p) => p !== PRIMARY_PROVIDER)];
+  const preferred = ["groq", "nvidia", "gemini", "openrouter"];
+  const ordered = [
+    ...(preferred.includes(PRIMARY_PROVIDER) ? [PRIMARY_PROVIDER] : []),
+    ...preferred.filter((p) => p !== PRIMARY_PROVIDER),
+    ...Object.keys(PROVIDERS).filter((p) => !preferred.includes(p) && p !== PRIMARY_PROVIDER),
+  ];
   return ordered
     .filter((name) => PROVIDERS[name] && PROVIDER_KEYS[name])
     .map((name) => ({

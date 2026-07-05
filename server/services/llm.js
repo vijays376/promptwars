@@ -36,7 +36,7 @@ export function extractJSON(text) {
 
 // Expects a JSON object back. Walks the provider failover chain; within each
 // provider, first tries strict JSON mode then downgrades.
-export async function callLLM(messages, { retries = 1, label = "llm" } = {}) {
+export async function callLLM(messages, { retries = 0, label = "llm" } = {}) {
   const chain = providerChain();
   if (chain.length === 0) {
     log(`✗ [${label}] no provider API keys set — using fallback`);

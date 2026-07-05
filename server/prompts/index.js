@@ -1,4 +1,3 @@
-// Prompt builders. JSON keys stay English; only values are translated.
 import { HISTORY_TURNS, MAX_INPUT_CHARS } from "../config.js";
 
 export const ACCURACY_RULE =
@@ -8,9 +7,21 @@ export const ACCURACY_RULE =
 
 export function languageRule(language) {
   if (!language || /^english$/i.test(language)) return "";
+  if (/^hinglish$/i.test(language)) {
+    return (
+      " Write all user-facing text in natural Hinglish: a conversational mix of Hindi and English " +
+      "using Roman script unless the user's message clearly uses another script. Keep it warm, casual, and human."
+    );
+  }
+  if (/^hindi$/i.test(language)) {
+    return (
+      " Write all user-facing text entirely in Hindi using Devanagari script unless the user explicitly asks otherwise. " +
+      "Keep the tone warm and natural."
+    );
+  }
   return (
     ` Write ALL human-readable text values in ${language}. ` +
-    `Keep every JSON key/field name exactly in English as specified — only translate the values.`
+    `Keep every JSON key/field name exactly in English as specified - only translate the values.`
   );
 }
 
@@ -60,7 +71,7 @@ export function packageMessages(destination, prefs) {
         ACCURACY_RULE +
         " Respond ONLY as JSON of shape: " +
         `{"destination":"...","attractions":[{"name":"...","name_en":"the same place name in English/romanized for image search","why":"personalized reason (1 sentence)"}],` +
-        `"hidden_gem":{"name":"...","name_en":"English/romanized name for image search","description":"why locals love it, why tourists miss it"},` +
+        `"hidden_gems":[{"name":"...","name_en":"English/romanized name for image search","description":"why locals love it, why tourists miss it"}],` +
         `"story":{"title":"...","narrative":"2-3 vivid paragraphs of immersive second-person storytelling grounded in real heritage"},` +
         `"heritage":{"title":"...","significance":"cultural/historical/architectural significance, tangible & intangible"},` +
         `"food":[{"dish":"local dish name","note":"what it is / where to try it"}],` +
@@ -81,17 +92,15 @@ export function packageMessages(destination, prefs) {
         `Destination: ${destination}\n` +
         `Traveller: interests=${prefs.interests}, budget=${prefs.budget}, ` +
         `trip length=${prefs.tripLength}, season=${prefs.season}, style=${prefs.travelStyle || "unspecified"}.\n` +
-        `Give 4 attractions, one genuine hidden gem, immersive story, heritage note, 3 local food picks, ` +
+        `Give 6 attractions, 2 genuine hidden gems, immersive story, heritage note, 3 local food picks, ` +
         `one real recurring local event, a structured authentic 'connect with a local' experience (with what they'll learn, ` +
         `duration, why it matters, and a draft intro message), etiquette tips, 3 basic local phrases, and one AI travel tip.`,
     },
   ];
 }
 
-// Atlas is the app's companion. Its context adapts to the page the traveller is
-// on: onboarding (home) → choosing (discover) → destination expert (passport).
 const ATLAS_PERSONA =
-  "You are Atlas, the warm, worldly travel companion inside CultureCompass — like a well-travelled " +
+  "You are Atlas, the warm, worldly travel companion inside CultureCompass - like a well-travelled " +
   "local friend: encouraging, genuine, and practical. Keep replies concise (2-5 sentences), never robotic. ";
 
 function chatContext({ mode, destination, destinations }) {
@@ -99,7 +108,7 @@ function chatContext({ mode, destination, destinations }) {
     return (
       "The traveller just arrived on the CultureCompass home page and may not know what it is. " +
       "CultureCompass helps them DISCOVER the destination that truly fits them, then builds a personalized " +
-      "'Cultural Passport' — hidden gems, immersive stories, real photos, maps, local food, events and authentic " +
+      "'Cultural Passport' - hidden gems, immersive stories, real photos, maps, local food, events and authentic " +
       "hands-on experiences, in their own language. Warmly explain what the app does and how it helps them travel " +
       "meaningfully (not as a tourist), answer any questions about it, and gently encourage them to fill in the short " +
       "form above to get their matches."
@@ -109,13 +118,13 @@ function chatContext({ mode, destination, destinations }) {
     const list = (destinations || []).filter(Boolean).join(", ");
     return (
       `The traveller is looking at their three recommended destinations${list ? `: ${list}` : ""}. ` +
-      "Help them CHOOSE between these — compare them against their interests, answer questions about any of them, " +
+      "Help them CHOOSE between these - compare them against their interests, answer questions about any of them, " +
       "and encourage them to open one to see its full Cultural Passport. Only discuss these recommended options."
     );
   }
   if (destination) {
     return (
-      `The traveller is viewing the Cultural Passport for ${destination}. Be their local expert for THIS place — ` +
+      `The traveller is viewing the Cultural Passport for ${destination}. Be their local expert for THIS place - ` +
       "attractions, culture, food, etiquette, logistics, hidden gems, day plans. Ground answers in this destination."
     );
   }
@@ -123,11 +132,41 @@ function chatContext({ mode, destination, destinations }) {
 }
 
 export function chatMessages({ mode, destination, destinations, language, history, question }) {
-  const sys = ATLAS_PERSONA + chatContext({ mode, destination, destinations }) + " " + ACCURACY_RULE + languageRule(language);
+  const userText = String(question || "");
+  const sys =
+    ATLAS_PERSONA +
+    chatContext({ mode, destination, destinations }) +
+    " " +
+    ACCURACY_RULE +
+    languageRule(language) +
+    inferChatLanguageRule(userText, language);
   const msgs = [{ role: "system", content: sys }];
   for (const turn of (history || []).slice(-HISTORY_TURNS)) {
     if (turn.role && turn.content) msgs.push({ role: turn.role, content: String(turn.content).slice(0, MAX_INPUT_CHARS) });
   }
-  msgs.push({ role: "user", content: String(question || "").slice(0, MAX_INPUT_CHARS) });
+  msgs.push({ role: "user", content: userText.slice(0, MAX_INPUT_CHARS) });
   return msgs;
+}
+
+function inferChatLanguageRule(text, fallbackLanguage) {
+  const t = String(text || "");
+  if (!t) return "";
+  if (/[অ-ঌএ-ঔক-হ]/.test(t)) {
+    return " Mirror the user's Bengali language and script closely in your reply.";
+  }
+  if (/[ऀ-ॿ]/.test(t)) {
+    return " The user is writing in Hindi script; reply in Hindi using Devanagari.";
+  }
+  const hasRomanHindi = /\b(bhai|bhen|kya|kaise|kahan|chale|sath|saath|wahan|yahan|kha|khao|karna|karo|jaunga|jaungi|bol|bolo|tu|tum|mujhe|mera|meri)\b/i.test(t);
+  const hasEnglish = /[a-z]/i.test(t);
+  if (hasRomanHindi && hasEnglish) {
+    return " The user is speaking in Hinglish; reply in natural Hinglish and preserve the code-mixed style.";
+  }
+  if (hasRomanHindi && !/^[a-z0-9\s.,!?'"-]+$/i.test(t)) {
+    return " The user is speaking in Hinglish; reply in natural Hinglish and preserve the code-mixed style.";
+  }
+  if (/^hinglish$/i.test(fallbackLanguage)) {
+    return " Reply in natural Hinglish and preserve the code-mixed style.";
+  }
+  return " Match the user's language and script as closely as possible; do not default to English if the user is clearly speaking another language.";
 }

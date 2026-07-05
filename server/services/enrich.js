@@ -58,6 +58,50 @@ export async function wikiSummary(place) {
   return null;
 }
 
+// Search Wikimedia Commons for real photos of a subject. Returns up to n image
+// URLs (jpg/png), best-effort. Keyless. Used to build attraction galleries.
+export async function commonsImages(query, n = 6) {
+  try {
+    const u =
+      "https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*" +
+      "&generator=search&gsrnamespace=6&gsrlimit=" + n +
+      "&gsrsearch=" + encodeURIComponent(query) +
+      "&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=1200";
+    const d = await fetchJson(u);
+    const pages = d?.query?.pages ? Object.values(d.query.pages) : [];
+    return pages
+      .map((p) => p.imageinfo?.[0])
+      .filter(Boolean)
+      .map((ii) => ii.thumburl || ii.url)
+      .filter((url) => url && /\.(jpe?g|png)$/i.test(url));
+  } catch (e) {
+    debug(`commonsImages(${query}) failed: ${e.message}`);
+    return [];
+  }
+}
+
+// Enrich a list of named places (attractions, gem, experience) with a photo
+// gallery + coordinates so the UI can show galleries and map pins. Best-effort.
+export async function enrichPlaces(items, city) {
+  if (process.env.CC_NO_ENRICH === "1") return [];
+  const cityName = (city || "").split(",")[0].trim();
+  return Promise.all(
+    (items || []).map(async (it) => {
+      const [coords, images] = await Promise.all([
+        geocode(`${it.name}, ${city}`).catch(() => null),
+        commonsImages(`${it.name} ${cityName}`, 6).catch(() => []),
+      ]);
+      return {
+        name: it.name,
+        category: it.category || "attraction",
+        lat: coords?.lat ?? null,
+        lon: coords?.lon ?? null,
+        images,
+      };
+    })
+  );
+}
+
 // WMO weather codes → short human summary
 const WMO = {
   0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",

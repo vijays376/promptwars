@@ -4,7 +4,7 @@
 import { Router } from "express";
 import { MAX_INPUT_CHARS, log } from "../config.js";
 import { callLLM, callLLMText } from "../services/llm.js";
-import { enrichDestination } from "../services/enrich.js";
+import { enrichDestination, enrichPlaces, wikiSummary } from "../services/enrich.js";
 import { discoveryMessages, packageMessages, chatMessages } from "../prompts/index.js";
 import { fallbackDiscovery, fallbackPackage } from "../fallbacks/index.js";
 
@@ -26,12 +26,20 @@ export function clampPrefs(p) {
 router.post("/discover", async (req, res) => {
   const prefs = clampPrefs(req.body);
   log(`▶ /api/discover ${JSON.stringify(prefs)}`);
+  let out;
   try {
-    const out = await callLLM(discoveryMessages(prefs), { label: "discover" });
-    res.json(out);
+    out = await callLLM(discoveryMessages(prefs), { label: "discover" });
   } catch (err) {
-    res.json(fallbackDiscovery(err));
+    out = fallbackDiscovery(err);
   }
+  // Best-effort hero image per destination so Discover shows image cards.
+  if (process.env.CC_NO_ENRICH !== "1" && Array.isArray(out.destinations)) {
+    await Promise.all(out.destinations.map(async (d) => {
+      const w = await wikiSummary(d.name).catch(() => null);
+      if (w?.image) d.image = w.image;
+    }));
+  }
+  res.json(out);
 });
 
 router.post("/package", async (req, res) => {
@@ -39,7 +47,7 @@ router.post("/package", async (req, res) => {
   const prefs = clampPrefs(req.body?.prefs);
   log(`▶ /api/package ${destination}`);
 
-  // Real enrichment runs in parallel with the AI call; never blocks failure.
+  // Destination-level enrichment (hero image, weather) runs alongside the AI call.
   const enrichP = enrichDestination(destination).catch(() => null);
   let out;
   try {
@@ -48,17 +56,32 @@ router.post("/package", async (req, res) => {
     out = fallbackPackage(destination, err);
   }
   out.enrich = await enrichP;
+
+  // Per-place enrichment (photo galleries + coordinates) for attractions, the
+  // hidden gem, and the authentic experience — powers the gallery + map pins.
+  const items = [
+    ...(out.attractions || []).map((a) => ({ name: a.name, category: "attraction" })),
+    ...(out.hidden_gem?.name ? [{ name: out.hidden_gem.name, category: "gem" }] : []),
+    ...(out.connect?.title ? [{ name: out.connect.title, category: "experience" }] : []),
+  ];
+  out.enrich = out.enrich || {};
+  out.enrich.places = await enrichPlaces(items, destination).catch(() => []);
   res.json(out);
 });
 
 router.post("/chat", async (req, res) => {
+  const mode = ["home", "discover", "passport"].includes(req.body?.mode) ? req.body.mode : "";
   const body = {
+    mode,
     destination: clampStr(String(req.body?.destination || ""), 120),
+    destinations: Array.isArray(req.body?.destinations)
+      ? req.body.destinations.slice(0, 5).map((d) => clampStr(String(d), 120))
+      : [],
     language: clampStr(String(req.body?.language || "English"), 40),
     question: clampStr(String(req.body?.question || "")),
     history: Array.isArray(req.body?.history) ? req.body.history : [],
   };
-  log(`▶ /api/chat ${body.destination || "-"} q="${body.question.slice(0, 60)}"`);
+  log(`▶ /api/chat [${mode || "-"}] ${body.destination || "-"} q="${body.question.slice(0, 60)}"`);
   try {
     const reply = await callLLMText(chatMessages(body), { label: "chat" });
     res.json({ reply });

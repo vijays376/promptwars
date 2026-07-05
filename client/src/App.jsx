@@ -1,13 +1,19 @@
-import { Routes, Route, NavLink, useLocation } from "react-router-dom";
+import { Routes, Route, Link, useLocation } from "react-router-dom";
 import Home from "./pages/Home.jsx";
 import Discover from "./pages/Discover.jsx";
 import Passport from "./pages/Passport.jsx";
 import ChatDock from "./components/ChatDock.jsx";
+import { useApp } from "./state.jsx";
 
 export default function App() {
   const loc = useLocation();
-  const match = loc.pathname.match(/^\/passport\/(.+)$/);
-  const destination = match ? decodeURIComponent(match[1]) : "";
+  const { discovery } = useApp();
+
+  // Derive the chat context from the current route.
+  const passportMatch = loc.pathname.match(/^\/passport\/(.+)$/);
+  const destination = passportMatch ? decodeURIComponent(passportMatch[1]) : "";
+  const mode = passportMatch ? "passport" : loc.pathname.startsWith("/discover") ? "discover" : "home";
+  const destinations = (discovery?.destinations || []).map((d) => d.name);
 
   return (
     <div className="shell">
@@ -16,19 +22,17 @@ export default function App() {
       <div className="content">
         <header className="masthead">
           <div className="inner">
-            <div className="mark" aria-hidden="true">🧭</div>
-            <div className="wordmark">
-              CultureCompass
-              <small>Discover · Connect · Belong</small>
-            </div>
-            <nav aria-label="Primary">
-              <NavLink to="/" end>Home</NavLink>
-              <NavLink to="/discover">Discover</NavLink>
-            </nav>
+            <Link to="/" className="brand">
+              <div className="mark" aria-hidden="true">🧭</div>
+              <div className="wordmark">
+                CultureCompass
+                <small>Discover · Connect · Belong</small>
+              </div>
+            </Link>
           </div>
         </header>
 
-        <main id="main" className="container">
+        <main id="main">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/discover" element={<Discover />} />
@@ -37,7 +41,7 @@ export default function App() {
         </main>
       </div>
 
-      <ChatDock destination={destination} />
+      <ChatDock mode={mode} destination={destination} destinations={destinations} />
     </div>
   );
 }

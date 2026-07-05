@@ -87,14 +87,42 @@ export function packageMessages(destination, prefs) {
   ];
 }
 
-export function chatMessages({ destination, language, history, question }) {
-  const sys =
-    "You are CultureCompass, a friendly, knowledgeable local travel companion" +
-    (destination ? ` for ${destination}` : "") +
-    ". Answer the traveller's questions about attractions, culture, food, etiquette, " +
-    "logistics and hidden gems in a warm, concise, practical way (2-5 sentences). " +
-    ACCURACY_RULE +
-    languageRule(language);
+// Atlas is the app's companion. Its context adapts to the page the traveller is
+// on: onboarding (home) → choosing (discover) → destination expert (passport).
+const ATLAS_PERSONA =
+  "You are Atlas, the warm, worldly travel companion inside CultureCompass — like a well-travelled " +
+  "local friend: encouraging, genuine, and practical. Keep replies concise (2-5 sentences), never robotic. ";
+
+function chatContext({ mode, destination, destinations }) {
+  if (mode === "home") {
+    return (
+      "The traveller just arrived on the CultureCompass home page and may not know what it is. " +
+      "CultureCompass helps them DISCOVER the destination that truly fits them, then builds a personalized " +
+      "'Cultural Passport' — hidden gems, immersive stories, real photos, maps, local food, events and authentic " +
+      "hands-on experiences, in their own language. Warmly explain what the app does and how it helps them travel " +
+      "meaningfully (not as a tourist), answer any questions about it, and gently encourage them to fill in the short " +
+      "form above to get their matches."
+    );
+  }
+  if (mode === "discover") {
+    const list = (destinations || []).filter(Boolean).join(", ");
+    return (
+      `The traveller is looking at their three recommended destinations${list ? `: ${list}` : ""}. ` +
+      "Help them CHOOSE between these — compare them against their interests, answer questions about any of them, " +
+      "and encourage them to open one to see its full Cultural Passport. Only discuss these recommended options."
+    );
+  }
+  if (destination) {
+    return (
+      `The traveller is viewing the Cultural Passport for ${destination}. Be their local expert for THIS place — ` +
+      "attractions, culture, food, etiquette, logistics, hidden gems, day plans. Ground answers in this destination."
+    );
+  }
+  return "Help the traveller with their trip questions.";
+}
+
+export function chatMessages({ mode, destination, destinations, language, history, question }) {
+  const sys = ATLAS_PERSONA + chatContext({ mode, destination, destinations }) + " " + ACCURACY_RULE + languageRule(language);
   const msgs = [{ role: "system", content: sys }];
   for (const turn of (history || []).slice(-HISTORY_TURNS)) {
     if (turn.role && turn.content) msgs.push({ role: turn.role, content: String(turn.content).slice(0, MAX_INPUT_CHARS) });

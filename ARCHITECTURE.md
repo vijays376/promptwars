@@ -1,102 +1,93 @@
-# 🏗️ CultureCompass — Simple Architecture
+# 🏗️ CultureCompass Architecture
 
-A single-page frontend talks to a tiny Node backend, which calls an LLM
-(with automatic failover) and always has a safe fallback.
+CultureCompass is a React frontend backed by an Express API. The frontend handles the interactive travel experience, while the backend handles AI calls, fallbacks, and enrichment.
 
----
+## High-level flow
 
-## The big picture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        USER (browser)                       │
-│                                                             │
-│   Single-page app  ·  public/index.html                     │
-│   vanilla HTML + CSS + JS                                   │
-│   accessible · multilingual · text-to-speech                │
-└───────────────────────────┬─────────────────────────────────┘
-                            │  HTTP (JSON)
-                            │  POST /api/discover
-                            │  POST /api/package
-                            │  POST /api/chat
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    NODE.JS SERVER  ·  server.js             │
-│                  (zero dependencies: http + fetch)          │
-│                                                             │
-│   • builds the AI prompts                                   │
-│   • enforces security (CSP, input limits, timeouts)         │
-│   • parses / validates the AI's JSON reply                  │
-└───────────────────────────┬─────────────────────────────────┘
-                            │  OpenAI-compatible request
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│              LLM PROVIDER FAILOVER CHAIN                    │
-│                                                             │
-│     Groq  →  NVIDIA  →  OpenRouter  →  Gemini               │
-│     (try #1)  (try #2)   (try #3)     (try #4)              │
-│                                                             │
-│   If one is rate-limited / slow / down, try the next.       │
-└─────────────────────────────────────────────────────────────┘
+```text
+User
+  ↓
+React app
+  ├─ Home: traveller preferences
+  ├─ Discover: destination recommendations
+  └─ Passport: full cultural guide + chat
+  ↓
+Express API
+  ├─ /api/discover
+  ├─ /api/package
+  └─ /api/chat
+  ↓
+LLM provider chain
+  groq → nvidia → gemini → openrouter
+  ↓
+Curated fallback if all providers fail
 ```
 
----
+## Backend responsibilities
 
-## What each endpoint does
+- Build prompts and enforce JSON output
+- Fail over across providers
+- Abort slow requests with a timeout
+- Enrich destinations with:
+  - geocoding
+  - weather
+  - Wikipedia summary
+  - photo galleries / hero images
+- Clamp and validate incoming inputs
+- Return fallback data instead of hard errors
 
-| Endpoint | Input | AI produces |
-|----------|-------|-------------|
-| `POST /api/discover` | traveller preferences | persona + 3 fitted destinations |
-| `POST /api/package` | chosen destination | the full Cultural Passport |
-| `POST /api/chat` | a question + destination | a grounded companion reply |
+## Frontend responsibilities
 
----
+- Collect traveller preferences
+- Show destination cards
+- Render the passport sections
+- Show maps and photo galleries
+- Support speech synthesis and dictation
+- Keep Atlas as a persistent companion dock
 
-## One request, start to finish
+## Provider behavior
 
-```
-User clicks "Discover"
-        │
-        ▼
-Frontend  ── POST /api/discover ──►  Node server
-                                        │
-                                        │  build prompt
-                                        ▼
-                                 Try Groq ──► ok? ─► return JSON
-                                        │ fail
-                                        ▼
-                                 Try NVIDIA ─► ok? ─► return JSON
-                                        │ fail
-                                        ▼
-                                 …OpenRouter…Gemini…
-                                        │ 
-                                        │
-        ◄────────── JSON response ──────┘
-        │
-        ▼
-Frontend renders the result
-```
+- Groq is the first provider in the chain
+- NVIDIA is next
+- Gemini follows
+- OpenRouter is last before fallback
 
----
+If a provider is slow, rate-limited, or returns malformed JSON, the backend moves on to the next provider. If every provider fails, the user still gets curated demo content with a notice.
 
-## Layers of safety (why it never breaks live)
+## Data shape
 
-1. **Timeout** — each AI call is aborted after 15s so it can't hang.
-2. **Failover** — if a provider fails, the next one is tried automatically.
+### `/api/discover`
 
----
+Returns:
 
-## Files at a glance
+- `persona`
+- `analysis`
+- `destinations`
+- optional `_fallback`
 
-```
-promptwars/
-├── server.js            ← backend: routing, prompts, AI calls, fallbacks
-├── public/index.html    ← frontend: the entire single-page app
-├── test/server.test.js  ← 24 automated tests
-├── .env                 ← provider keys (gitignored)
-└── SHOWCASE.md          ← full product tour
-```
+### `/api/package`
 
----
+Returns:
 
-*Design goal: maximum reliability with minimum moving parts.*
+- `destination`
+- `attractions`
+- `hidden_gems`
+- `hidden_gem` for back-compat
+- `story`
+- `heritage`
+- `food`
+- `event`
+- `connect`
+- `etiquette`
+- `phrases`
+- `ai_tip`
+- `enrich`
+- optional `_fallback`
+
+### `/api/chat`
+
+Returns:
+
+- `reply`
+- optional `_fallback`
+

@@ -4,7 +4,11 @@
 
 # Node
 node_modules/
+**/node_modules/
 npm-debug.log*
+
+# Build output
+client/dist/
 
 # OS / editor
 .DS_Store

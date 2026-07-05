@@ -8,60 +8,63 @@ chosen place into a personalized **AI Cultural Passport** — immersive
 storytelling, hidden gems, heritage, local food, events, and an authentic
 "connect with a local" experience.
 
-Built as a focused 2-hour solo hackathon project. **Zero npm dependencies** —
-just Node.js and one LLM API key.
+**Stack (v3):** React + Vite frontend · Express backend · multi-provider LLM
+failover · keyless real-data enrichment (maps, Wikipedia, weather). Won 2nd place
+(96.24) as a v2 single-file app; this is the full rebuild. See
+[HANDOFF.md](HANDOFF.md) for the developer/AI orientation, [SHOWCASE.md](SHOWCASE.md)
+for the product tour, and [ARCHITECTURE.md](ARCHITECTURE.md) for the diagram.
 
 ---
 
 ## ✨ What it does
 
-1. **Traveller preferences** — 5 quick inputs.
-2. **LLM call #1 — Discovery** → an AI-named *persona*, an intelligent analysis
-   line, and 3 fitted destinations with "why this fits you".
-3. **Pick a destination** → **LLM call #2 — Cultural Passport**: attractions,
-   hidden gem, immersive story, heritage, local food, a real seasonal event,
-   an authentic hands-on experience (with a ready-to-send intro message),
-   etiquette, local phrases, and an AI travel tip — all in one response.
+1. **Traveller preferences** — a few quick inputs (incl. preferred language).
+2. **Discovery** → an AI-named *persona*, an intelligent analysis line, and 3
+   fitted destinations with "why this fits you".
+3. **Cultural Passport** → attractions, hidden gem, immersive story (with **audio
+   narration**), heritage, local food, a seasonal event, an authentic hands-on
+   experience (with intro message), etiquette, phrases, AI tip — plus **real data**:
+   an interactive **map**, a **Wikipedia** photo + summary, and current **weather**.
+4. **Companion chat** — a persistent right-side assistant with **microphone voice
+   input**, grounded in the chosen destination, answering in your language.
 
-If the LLM API is ever unreachable during a demo, the app automatically serves
-a curated fallback so it **never hard-fails live**.
+Three layers of safety (timeout → provider failover → curated fallback) mean it
+**never hard-fails live**.
 
 ---
 
 ## 🚀 Getting started
 
 ### 1. Prerequisites
-- **Node.js 18+** (you have v24 — perfect). Check: `node --version`
+- **Node.js 18+**. Check: `node --version`
 
-### 2. Configure your provider
-Copy the example env file and fill in your key:
+### 2. Configure providers
+```bash
+cp .env.example .env      # then add your key(s) — Groq is fastest/free
+```
+Minimum: set `PROVIDER` + one key. Add more provider keys to enable failover
+(see the provider table + [🔁 failover](#-automatic-provider-failover) below).
 
-```powershell
-# Windows PowerShell
-Copy-Item .env.example .env
+### 3. Install & run
+
+```bash
+npm install               # root deps (Express, concurrently)
+npm run dev               # Express API (:3000) + Vite dev server (:5173) together
+#   → open http://localhost:5173  (Vite proxies /api to the backend)
+
+npm test                  # backend tests (node --test)
 ```
 
-Then open `.env` and set three things:
+### 4. Production build
 
-```env
-PROVIDER=openrouter          # openrouter | groq | nvidia | gemini
-API_KEY=sk-your-real-key
-MODEL=meta-llama/llama-3.3-70b-instruct:free
+```bash
+npm run build             # builds the React client to client/dist
+npm start                 # Express serves client/dist + the API on :3000
+#   → open http://localhost:3000
 ```
 
-> A `.env` file is already created for you — just paste your key and model.
-
-### 3. Run it
-
-```powershell
-node server.js
-# or:  npm start
-```
-
-Open **http://localhost:3000** 🎉
-
-The console prints which provider/model/key it loaded, so you can confirm
-config at a glance.
+**Render:** Build command `npm install && npm run build`, Start command `npm start`,
+and set your provider keys as environment variables.
 
 ---
 

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-label="CultureCompass">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1a1420"/>
+      <stop offset="0.55" stop-color="#6d2f3f"/>
+      <stop offset="1" stop-color="#e8724c"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f0a94b"/>
+      <stop offset="1" stop-color="#e8724c"/>
+    </linearGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1420" stop-opacity="0"/>
+      <stop offset="1" stop-color="#1a1420" stop-opacity="0.65"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="320" fill="url(#sky)"/>
+  <circle cx="600" cy="250" r="150" fill="url(#sun)" opacity="0.9"/>
+  <!-- mountain silhouettes -->
+  <path d="M0 320 L180 180 L320 260 L470 150 L640 280 L820 170 L1000 250 L1200 160 L1200 320 Z" fill="#241b2c" opacity="0.85"/>
+  <path d="M0 320 L140 240 L300 300 L520 220 L740 300 L980 235 L1200 300 L1200 320 Z" fill="#1a1420" opacity="0.9"/>
+  <rect width="1200" height="320" fill="url(#fade)"/>
+
+  <!-- compass mark -->
+  <g transform="translate(90,160)">
+    <circle r="46" fill="none" stroke="#fff6ec" stroke-width="3" opacity="0.95"/>
+    <polygon points="0,-34 10,0 0,34 -10,0" fill="#f0a94b"/>
+    <polygon points="0,-34 10,0 0,0" fill="#e8724c"/>
+    <circle r="5" fill="#fff6ec"/>
+  </g>
+
+  <text x="170" y="150" font-family="Georgia, 'Times New Roman', serif" font-size="66" font-weight="700" fill="#fff6ec">CultureCompass</text>
+  <text x="172" y="196" font-family="Inter, system-ui, sans-serif" font-size="23" fill="#f3e6d5" opacity="0.92">Discover the destination that fits you — then travel like a local.</text>
+  <text x="172" y="234" font-family="Inter, system-ui, sans-serif" font-size="15" letter-spacing="3" fill="#f0a94b">GENAI · REACT · EXPRESS · MAPS · VOICE · MULTILINGUAL</text>
+</svg>

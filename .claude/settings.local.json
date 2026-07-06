@@ -20,7 +20,9 @@
       "Bash(git checkout *)",
       "Bash(npm install *)",
       "Bash(npm run *)",
-      "Bash(git commit -q -m ' *)"
+      "Bash(git commit -q -m ' *)",
+      "Bash(git remote *)",
+      "Read(//c/VijayProjects/**)"
     ]
   }
 }

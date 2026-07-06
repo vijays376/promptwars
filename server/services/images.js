@@ -154,11 +154,50 @@ const PROVIDERS = [
   { name: "commons", fn: commons },
 ];
 
+// Per-provider rate limits [maxCalls, windowMs], sized to each free tier's docs
+// so we never trip a 429 / burn a quota. Keyless sources get conservative caps.
+const RATE = {
+  pixabay: [95, 60_000],      // docs: 100 req / 60s
+  pexels: [190, 3_600_000],   // docs: 200 req / hour
+  unsplash: [45, 3_600_000],  // docs: 50 req / hour (demo)
+  openverse: [55, 60_000],
+  commons: [30, 60_000],
+};
+const callLog = {};
+function withinRate(name) {
+  const [limit, win] = RATE[name] || [Infinity, 1000];
+  const now = Date.now();
+  const arr = (callLog[name] = (callLog[name] || []).filter((t) => now - t < win));
+  if (arr.length >= limit) return false;
+  arr.push(now);
+  return true;
+}
+
+// Short-lived result cache — the same place is queried across many requests, so
+// this cuts provider calls dramatically (and keeps us under the rate limits).
+const CACHE_TTL = 6 * 3_600_000;
+const cache = new Map();
+function cacheGet(k) {
+  const v = cache.get(k);
+  if (v && Date.now() - v.t < CACHE_TTL) return v.urls;
+  if (v) cache.delete(k);
+  return null;
+}
+function cacheSet(k, urls) {
+  cache.set(k, { t: Date.now(), urls });
+  if (cache.size > 500) cache.delete(cache.keys().next().value); // evict oldest
+}
+
 export async function imageSearch(query, n = 12, opts = {}) {
+  const key = `${query}|${n}|${opts.language || ""}|${opts.city || ""}|${opts.country || ""}`;
+  const cached = cacheGet(key);
+  if (cached) return cached;
+
   const seen = new Set();
   const out = [];
   for (const p of PROVIDERS) {
     if (out.length >= n) break;
+    if (!withinRate(p.name)) { debug(`images[${p.name}] rate-limited — skipping`); continue; }
     try {
       const urls = await p.fn(query, n, opts);
       for (const url of urls) {
@@ -171,7 +210,9 @@ export async function imageSearch(query, n = 12, opts = {}) {
       debug(`images[${p.name}] "${query}" failed: ${e.message}`);
     }
   }
-  return out.slice(0, n);
+  const result = out.slice(0, n);
+  if (result.length) cacheSet(key, result);
+  return result;
 }
 
 export async function iconicImage(query, opts = {}) {

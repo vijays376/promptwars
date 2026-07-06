@@ -43,13 +43,12 @@ Most travel apps assume you already know where to go and hand you a generic top-
 
 ## 📸 Screenshots
 
-> _Add screenshots/GIFs to `docs/screenshots/` and they'll appear here._
-
-<!--
-| Discovery | Cultural Passport | Atlas companion |
-|---|---|---|
-| ![Discovery](docs/screenshots/discover.png) | ![Passport](docs/screenshots/passport.png) | ![Atlas](docs/screenshots/atlas.png) |
--->
+![Discover](docs/screenshots/Discover.png)
+![Recommendation](docs/screenshots/Recommendation.png)
+![Atlas AI](docs/screenshots/Atlas%20AI.png)
+![Attractions](docs/screenshots/Attractions.png)
+![Map](docs/screenshots/Map.png)
+![Local Event](docs/screenshots/Local%20Event.png)
 
 ---
 
